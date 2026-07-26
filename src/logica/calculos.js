@@ -33,3 +33,17 @@ function sugerirMontoPorCategoria(categoria, historicoGastos) {
 function formatearContextoParaIA(liquidacionActual, historico, vehiculo) {
   throw new Error("No implementado");
 }
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    calcularTotalPorDia,
+    calcularTotalGastos,
+    calcularTotalFletes,
+    calcularBalance,
+    calcularConsumoPorKm,
+    detectarAlertasMantenimiento,
+    compararLiquidaciones,
+    sugerirMontoPorCategoria,
+    formatearContextoParaIA,
+  };
+}

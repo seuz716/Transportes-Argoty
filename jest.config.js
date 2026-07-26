@@ -1,4 +1,5 @@
 module.exports = {
+  roots: ["<rootDir>/tests"],
   testMatch: ["**/tests/**/*.test.js"],
   collectCoverage: true,
   coverageDirectory: "coverage",

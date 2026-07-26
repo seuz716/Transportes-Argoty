@@ -31,12 +31,17 @@ tmp/
 temp/
 
 # Secrets de Google Cloud/Apps Script
+.clasprc.json
+.clasp.json
 clasp remotes.json
+
+# Coverage de tests
+coverage/
 
 # OS artifacts (Windows)
 .DS_Store
 Thumbs.db
-:Zone.Identifier
+*:Zone.Identifier
 
 # TypeScript (si se usa)
 *.tsbuildinfo

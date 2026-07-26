@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "App de liquidación de fletes para Sr. Argoty — Google Apps Script",
   "type": "commonjs",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
