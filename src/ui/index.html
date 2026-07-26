@@ -160,9 +160,18 @@ h3{font-size:1rem;margin:8px 0 4px}
     <div id="ai-response"></div>
   </div>
 
-  <div class="btn-row" style="margin-top:16px">
-    <button class="btn btn-success" id="btn-cerrar">Cerrar viaje</button>
-    <button class="btn btn-danger" id="btn-limpiar">Limpiar</button>
+  <div id="cerramiento-result" class="hidden" style="margin-top:16px">
+    <h3>Viaje cerrado</h3>
+    <div id="cerramiento-datos"></div>
+    <a id="btn-pdf" href="#" target="_blank" class="btn btn-primary" style="display:block;text-align:center;margin-top:8px">Abrir PDF</a>
+    <div class="btn-row" style="margin-top:8px">
+      <a id="btn-wa" href="#" class="btn btn-success" style="text-align:center;flex:1" target="_blank">WhatsApp</a>
+      <button id="btn-email" class="btn btn-secondary" style="flex:1">Enviar email</button>
+    </div>
+    <div id="email-dialog" class="hidden" style="margin-top:8px">
+      <input type="email" id="email-dest" placeholder="email@ejemplo.com" style="width:100%;padding:8px;border-radius:8px;border:1px solid #dadce0;margin-bottom:4px">
+      <button id="btn-enviar-email" class="btn btn-primary" style="width:100%">Enviar</button>
+    </div>
   </div>
 
   <div class="footer">Transportes Argoty &copy; 2026</div>
@@ -184,10 +193,13 @@ var GAS = {
   comparar: function(idA, idB) { return GAS.call("compararLiquidaciones", [idA, idB]); },
   estadoVehiculo: function() { return GAS.call("obtenerEstadoVehiculo", []); },
   preguntarIA: function(preg, lid) { return GAS.call("preguntarIA", [preg, lid]); },
+  enviarWhatsApp: function(lid, url, bal) { return GAS.call("enviarWhatsApp", [lid, url, bal]); },
+  enviarEmail: function(dest, asunto, cuerpo, pdfUrl) { return GAS.call("enviarPorEmail", [dest, asunto, cuerpo, pdfUrl]); },
 };
 
 var PLACA = "ABC-123";
 var LIQUIDACION_ID = null;
+var cerraduraData = null;
 
 function showScreen(name) {
   document.getElementById("pin-screen").style.display = name === "pin" ? "flex" : "none";
@@ -326,16 +338,51 @@ function loadFletes() {
   }).catch(function(){});
 }
 
+  document.getElementById("btn-email").addEventListener("click", function() {
+    document.getElementById("email-dialog").classList.toggle("hidden");
+  });
+  document.getElementById("btn-enviar-email").addEventListener("click", function() {
+    var dest = document.getElementById("email-dest").value.trim();
+    if (!dest) return alert("Ingresá el email");
+    GAS.enviarEmail(dest, "Liquidacion " + LIQUIDACION_ID, "Adjunto liquidacion " + LIQUIDACION_ID, cerraduraData.pdfUrl).then(function(msg) {
+      alert(msg);
+    }).catch(function(e) {
+      alert("Error: " + e.message);
+    });
+  });
+}
+
 async function cerrarViaje() {
   var kmFinal = prompt("Km final:");
   if (!kmFinal || isNaN(kmFinal)) return;
+  var btn = document.getElementById("btn-cerrar");
+  btn.disabled = true;
+  btn.textContent = "Cerrando...";
   try {
-    await GAS.cerrarLiquidacion(LIQUIDACION_ID, parseInt(kmFinal));
-    alert("Viaje cerrado exitosamente");
-    loadResumen();
-    loadAlertas();
+    cerraduraData = await GAS.cerrarLiquidacion(LIQUIDACION_ID, parseInt(kmFinal));
+    var resultDiv = document.getElementById("cerramiento-result");
+    resultDiv.classList.remove("hidden");
+    var datosDiv = document.getElementById("cerramiento-datos");
+    var balCls = cerraduraData.balance >= 0 ? "" : "negative";
+    datosDiv.innerHTML =
+      '<div class="summary">' +
+      '<div class="row"><span>Gastos</span><span>$' + cerraduraData.totalGastos.toLocaleString("es-CO") + '</span></div>' +
+      '<div class="row"><span>Fletes</span><span>$' + cerraduraData.totalFletes.toLocaleString("es-CO") + '</span></div>' +
+      '<div class="row total ' + balCls + '"><span>Balance</span><span>$' + cerraduraData.balance.toLocaleString("es-CO") + '</span></div>' +
+      (cerraduraData.consumoKm ? '<div class="row"><span>Consumo ACPM</span><span>$' + cerraduraData.consumoKm.toFixed(2) + '/km</span></div>' : '') +
+      '</div>';
+    var waUrl = GAS.enviarWhatsApp(cerraduraData.id, cerraduraData.pdfUrl || "", cerraduraData.balance);
+    document.getElementById("btn-wa").href = waUrl;
+    document.getElementById("btn-pdf").href = cerraduraData.pdfUrl || "#";
+    if (!cerraduraData.pdfUrl) {
+      document.getElementById("btn-pdf").style.display = "none";
+      document.getElementById("btn-wa").style.display = "none";
+    }
   } catch (e) {
     alert("Error al cerrar: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Cerrar viaje";
   }
 }
 
