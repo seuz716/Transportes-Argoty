@@ -265,7 +265,48 @@ function obtenerPlacaActiva() {
 }
 
 function preguntarIA(pregunta, liquidacionId) {
-  throw new Error("Gemini Flash no configurado. Pendiente de Fase 5.");
+  var apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY no configurada en PropertiesService");
+  if (!pregunta || pregunta.trim().length === 0) throw new Error("La pregunta no puede estar vacía");
+
+  var liquidacion;
+  if (liquidacionId && liquidacionId !== "current") {
+    liquidacion = obtenerResumenLiquidacion(liquidacionId);
+  } else {
+    var liqAbierta = obtenerLiquidacionAbierta();
+    if (!liqAbierta) throw new Error("No hay una liquidación abierta para consultar");
+    liquidacion = obtenerResumenLiquidacion(liqAbierta.id);
+  }
+
+  var vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", liquidacion.placa || "")[0] || {};
+  var vehiculoInfo = { placa: vehiculo.placa || "N/A", kmActual: vehiculo.kmActual || 0 };
+  var contexto = formatearContextoParaIA(liquidacion, [], vehiculoInfo);
+  var prompt = "Contexto de la liquidacion:\n" + contexto + "\n\nPregunta: " + pregunta;
+
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 500 },
+    }),
+    muteHttpExceptions: true,
+  };
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+  var res = UrlFetchApp.fetch(url, options);
+  var code = res.getResponseCode();
+  if (code !== 200) {
+    var errBody = JSON.parse(res.getContentText());
+    var errMsg = errBody.error && errBody.error.message ? errBody.error.message : "HTTP " + code;
+    throw new Error("Gemini error " + code + ": " + errMsg);
+  }
+
+  var body = JSON.parse(res.getContentText());
+  var candidates = body.candidates;
+  if (!candidates || candidates.length === 0) throw new Error("Gemini no devolvió respuesta");
+  var text = candidates[0].content.parts[0].text;
+  text = text.replace(/[\r\n]+/g, "\n").trim();
+  return text;
 }
 
 function verificarPIN(pin) {
