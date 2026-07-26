@@ -1,0 +1,42 @@
+# Dependencias de Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Archivos de compilación/parcheo de Apps Script
+dist/
+build/
+
+# Archivos de configuración locales (no compartir secrets)
+.env
+*.env
+.env.local
+.env.*.local
+
+# Configuraciones de desarrollo que no deben ir al repo
+src/settings.local.yaml
+*.local.yaml
+
+# Cache de IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs y temporales
+*.log
+tmp/
+temp/
+
+# Secrets de Google Cloud/Apps Script
+clasp remotes.json
+
+# OS artifacts (Windows)
+.DS_Store
+Thumbs.db
+:Zone.Identifier
+
+# TypeScript (si se usa)
+*.tsbuildinfo

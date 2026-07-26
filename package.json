@@ -1,0 +1,17 @@
+{
+  "name": "transportes-argoty",
+  "version": "0.1.0",
+  "description": "App de liquidación de fletes para Sr. Argoty — Google Apps Script",
+  "type": "commonjs",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "deploy": "clasp deploy"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
