@@ -1,37 +1,97 @@
 function calcularTotalPorDia(gastos, dia) {
-  throw new Error("No implementado");
+  return gastos
+    .filter((g) => g.diaSemana === dia)
+    .reduce((sum, g) => sum + g.monto, 0);
 }
 
 function calcularTotalGastos(gastos) {
-  throw new Error("No implementado");
+  return gastos.reduce((sum, g) => sum + g.monto, 0);
 }
 
 function calcularTotalFletes(fletes) {
-  throw new Error("No implementado");
+  return fletes.reduce((sum, f) => sum + f.monto, 0);
 }
 
 function calcularBalance(fletes, gastos) {
-  throw new Error("No implementado");
+  return calcularTotalFletes(fletes) - calcularTotalGastos(gastos);
 }
 
 function calcularConsumoPorKm(totalACPM, kmInicial, kmFinal) {
-  throw new Error("No implementado");
+  const distancia = kmFinal - kmInicial;
+  if (distancia <= 0) return 0;
+  return totalACPM / distancia;
 }
 
 function detectarAlertasMantenimiento(vehiculo, config, fechaHoy) {
-  throw new Error("No implementado");
+  const hoy = new Date(fechaHoy);
+  const alertas = [];
+
+  const kmRecorridoAceite = vehiculo.kmActual - vehiculo.kmUltimoAceite;
+  if (kmRecorridoAceite > config.kmEntreCambioAceite) {
+    alertas.push("Cambio de aceite");
+  }
+
+  const kmRecorridoLlantas = vehiculo.kmActual - vehiculo.kmUltimoCambioLlantas;
+  if (kmRecorridoLlantas > config.kmVidaLlantas) {
+    alertas.push("Cambio de llantas");
+  }
+
+  const diasDesdeEngrasada = Math.floor(
+    (hoy - new Date(vehiculo.fechaUltimaEngrasada)) / (1000 * 60 * 60 * 24)
+  );
+  if (diasDesdeEngrasada > config.diasEntreEngrasadas) {
+    alertas.push("Engrasado");
+  }
+
+  const diasDesdeFrenos = Math.floor(
+    (hoy - new Date(vehiculo.fechaUltimaRevisionFrenos)) / (1000 * 60 * 60 * 24)
+  );
+  if (diasDesdeFrenos > config.diasEntreRevisionFrenos) {
+    alertas.push("Revisión de frenos");
+  }
+
+  return alertas;
 }
 
 function compararLiquidaciones(liquidacionA, liquidacionB) {
-  throw new Error("No implementado");
+  const balanceA = liquidacionA.balance;
+  const balanceB = liquidacionB.balance;
+
+  let mejorBalance = null;
+  if (balanceA > balanceB) mejorBalance = liquidacionA.id;
+  else if (balanceB > balanceA) mejorBalance = liquidacionB.id;
+
+  return {
+    balanceDiferencia: Math.abs(balanceA - balanceB),
+    gastosDiferencia: Math.abs(liquidacionA.totalGastos - liquidacionB.totalGastos),
+    fletesDiferencia: Math.abs(liquidacionA.totalFletes - liquidacionB.totalFletes),
+    mejorBalance,
+  };
 }
 
 function sugerirMontoPorCategoria(categoria, historicoGastos) {
-  throw new Error("No implementado");
+  const ultimo = [...historicoGastos].reverse().find((g) => g.categoria === categoria);
+  return ultimo ? ultimo.monto : undefined;
 }
 
 function formatearContextoParaIA(liquidacionActual, historico, vehiculo) {
-  throw new Error("No implementado");
+  const lineas = [
+    `Viaje ${liquidacionActual.id}: ${liquidacionActual.fechaInicio} a ${liquidacionActual.fechaFin}.`,
+    `Gastos totales: $${liquidacionActual.totalGastos}. Fletes totales: $${liquidacionActual.totalFletes}. Balance: $${liquidacionActual.balance}.`,
+    `Categoría con mayor gasto: ${liquidacionActual.categoriaMasGasto}.`,
+    `Vehículo: ${vehiculo.placa}, km actual: ${vehiculo.kmActual}.`,
+  ];
+
+  if (historico && historico.length > 0) {
+    lineas.push("Últimos viajes:");
+    historico.forEach((v) => {
+      lineas.push(
+        `  Viaje ${v.id}: balance $${v.balance}, gasto más alto en ${v.categoriaMasGasto} ($${v.montoMasGasto}).`
+      );
+    });
+  }
+
+  return lineas.join("\n");
 }
 
 if (typeof module !== "undefined") {
