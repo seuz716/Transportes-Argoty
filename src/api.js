@@ -1,7 +1,7 @@
 function crearLiquidacion(placa, fechaInicio, kmInicial) {
-  var hoja = obtenerHoja("Liquidaciones");
-  var id = obtenerProximoId(hoja);
-  var liquidacion = {
+  const hoja = obtenerHoja("Liquidaciones");
+  const id = obtenerProximoId(hoja);
+  const liquidacion = {
     id: String(id),
     placa: placa,
     fechaInicio: fechaInicio,
@@ -19,9 +19,9 @@ function crearLiquidacion(placa, fechaInicio, kmInicial) {
 }
 
 function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdicional) {
-  var hoja = obtenerHoja("Gastos");
-  var id = obtenerProximoId(hoja);
-  var gasto = {
+  const hoja = obtenerHoja("Gastos");
+  const id = obtenerProximoId(hoja);
+  const gasto = {
     id: String(id),
     liquidacionId: liquidacionId,
     fecha: fecha,
@@ -36,9 +36,9 @@ function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdi
 }
 
 function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto) {
-  var hoja = obtenerHoja("Fletes");
-  var id = obtenerProximoId(hoja);
-  var flete = {
+  const hoja = obtenerHoja("Fletes");
+  const id = obtenerProximoId(hoja);
+  const flete = {
     id: String(id),
     liquidacionId: liquidacionId,
     concepto: concepto,
@@ -51,26 +51,26 @@ function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto) {
 }
 
 function cerrarLiquidacion(liquidacionId, kmFinal) {
-  var hojaLiq = obtenerHoja("Liquidaciones");
-  var liqFilas = leerFilas(hojaLiq, 2);
-  var idx = -1;
-  for (var i = 0; i < liqFilas.length; i++) {
+  const hojaLiq = obtenerHoja("Liquidaciones");
+  const liqFilas = leerFilas(hojaLiq, 2);
+  let idx = -1;
+  for (let i = 0; i < liqFilas.length; i++) {
     if (liqFilas[i].id === liquidacionId) { idx = i; break; }
   }
   if (idx === -1) throw new Error("Liquidacion " + liquidacionId + " no encontrada");
 
-  var gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", liquidacionId);
-  var fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", liquidacionId);
+  const gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", liquidacionId);
+  const fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", liquidacionId);
 
-  var totalGastos = calcularTotalGastos(gastos);
-  var totalFletes = calcularTotalFletes(fletes);
-  var balance = calcularBalance(fletes, gastos);
+  const totalGastos = calcularTotalGastos(gastos);
+  const totalFletes = calcularTotalFletes(fletes);
+  const balance = calcularBalance(fletes, gastos);
 
-  var totalACPM = 0;
-  for (var j = 0; j < gastos.length; j++) {
+  let totalACPM = 0;
+  for (let j = 0; j < gastos.length; j++) {
     if (gastos[j].categoria === "ACPM") totalACPM += gastos[j].monto;
   }
-  var consumoKm = calcularConsumoPorKm(totalACPM, liqFilas[idx].kmInicial, kmFinal);
+  const consumoKm = calcularConsumoPorKm(totalACPM, liqFilas[idx].kmInicial, kmFinal);
 
   liqFilas[idx].fechaFin = new Date().toISOString().split("T")[0];
   liqFilas[idx].kmFinal = kmFinal;
@@ -80,14 +80,14 @@ function cerrarLiquidacion(liquidacionId, kmFinal) {
   liqFilas[idx].balance = balance;
   liqFilas[idx].consumoKm = consumoKm;
 
-  var valores = Object.values(liqFilas[idx]);
+  const valores = Object.values(liqFilas[idx]);
   hojaLiq.getRange(idx + 2, 1, 1, valores.length).setValues([valores]);
 
-  var pdfUrl = "";
+  let pdfUrl = "";
   try {
     pdfUrl = generarPDFLiquidacion(liquidacionId, liqFilas[idx], fletes, gastos);
     liqFilas[idx].pdfUrl = pdfUrl;
-    var v2 = Object.values(liqFilas[idx]);
+    const v2 = Object.values(liqFilas[idx]);
     hojaLiq.getRange(idx + 2, 1, 1, v2.length).setValues([v2]);
   } catch (e) {
     Logger.log("PDF error: " + e.message);
@@ -110,8 +110,8 @@ function cerrarLiquidacion(liquidacionId, kmFinal) {
 }
 
 function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
-  var doc = DocumentApp.create("Liquidacion " + liquidacionId);
-  var body = doc.getBody();
+  const doc = DocumentApp.create("Liquidacion " + liquidacionId);
+  const body = doc.getBody();
 
   body.appendParagraph("LIQUIDACION DE FLETES")
       .setHeading(DocumentApp.ParagraphHeading.HEADING1)
@@ -137,15 +137,15 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
 
   body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Gastos por dia");
 
-  var dias = {};
+  const dias = {};
   gastos.forEach(function(g) {
     if (!dias[g.diaSemana]) dias[g.diaSemana] = [];
     dias[g.diaSemana].push(g);
   });
 
-  var diasOrden = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+  const diasOrden = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
   diasOrden.forEach(function(dia) {
-    var items = dias[dia];
+    const items = dias[dia];
     if (!items || items.length === 0) return;
     body.appendParagraph(dia).setBold(true).setFontSize(11);
     items.forEach(function(item) {
@@ -154,12 +154,12 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
           " [" + item.categoria + "]"
       ).setFontSize(10);
     });
-    var subtotal = items.reduce(function(s, i) { return s + i.monto; }, 0);
+    const subtotal = items.reduce(function(s, i) { return s + i.monto; }, 0);
     body.appendParagraph("  Subtotal: $" + subtotal.toLocaleString("es-CO"))
         .setFontSize(10).setBold(true);
   });
 
-  var adicionales = gastos.filter(function(g) { return g.esAdicional; });
+  const adicionales = gastos.filter(function(g) { return g.esAdicional; });
   if (adicionales.length > 0) {
     body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Gastos adicionales");
     adicionales.forEach(function(item) {
@@ -172,24 +172,24 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
 
   body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Resumen financiero");
 
-  var totalFletes = fletes.reduce(function(s, f) { return s + f.monto; }, 0);
-  var totalGastos = gastos.reduce(function(s, g) { return s + g.monto; }, 0);
-  var balance = totalFletes - totalGastos;
+  const totalFletes = fletes.reduce(function(s, f) { return s + f.monto; }, 0);
+  const totalGastos = gastos.reduce(function(s, g) { return s + g.monto; }, 0);
+  const bal = totalFletes - totalGastos;
 
   body.appendTable([
     ["Concepto", "Monto"],
     ["Total fletes (ingresos)", "$" + totalFletes.toLocaleString("es-CO")],
     ["Total gastos", "$" + totalGastos.toLocaleString("es-CO")],
-    ["BALANCE", balance >= 0 ? "$" + balance.toLocaleString("es-CO") : "-$" + Math.abs(balance).toLocaleString("es-CO")],
+    ["BALANCE", bal >= 0 ? "$" + bal.toLocaleString("es-CO") : "-$" + Math.abs(bal).toLocaleString("es-CO")],
   ]).setFontSize(10);
 
-  var pdfBlob = DriveApp.getFileById(doc.getId()).getAs(MimeType.PDF);
-  var pdfName = "Liquidacion_" + liquidacionId + ".pdf";
-  var folderId = PropertiesService.getScriptProperties().getProperty("PDF_FOLDER");
-  var pdfFile;
+  const pdfBlob = DriveApp.getFileById(doc.getId()).getAs(MimeType.PDF);
+  const pdfName = "Liquidacion_" + liquidacionId + ".pdf";
+  const folderId = PropertiesService.getScriptProperties().getProperty("PDF_FOLDER");
+  let pdfFile;
   if (folderId) {
     try {
-      var folder = DriveApp.getFolderById(folderId);
+      const folder = DriveApp.getFolderById(folderId);
       pdfFile = folder.createFile(pdfBlob).setName(pdfName);
     } catch (e) {
       pdfFile = DriveApp.createFile(pdfBlob).setName(pdfName);
@@ -203,14 +203,14 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
 }
 
 function enviarWhatsApp(liquidacionId, pdfUrl, balance) {
-  var mensaje = "Liquidacion " + liquidacionId + " completada. Balance: $" + balance.toLocaleString("es-CO") + ". PDF: " + pdfUrl;
+  const mensaje = "Liquidacion " + liquidacionId + " completada. Balance: $" + balance.toLocaleString("es-CO") + ". PDF: " + pdfUrl;
   return "https://wa.me/?text=" + encodeURIComponent(mensaje);
 }
 
-function enviarEmail(destinatario, asunto, cuerpo, pdfUrl) {
+function enviarPorEmail(destinatario, asunto, cuerpo, pdfUrl) {
   try {
-    var response = UrlFetchApp.fetch(pdfUrl);
-    var pdfBlob = response.getBlob().setName("Liquidacion.pdf");
+    const response = UrlFetchApp.fetch(pdfUrl);
+    const pdfBlob = response.getBlob().setName("Liquidacion.pdf");
     GmailApp.sendEmail(destinatario, asunto, cuerpo, {
       attachments: [{ fileName: "Liquidacion.pdf", content: pdfBlob.getBytes(), mimeType: "application/pdf" }],
     });
@@ -221,25 +221,25 @@ function enviarEmail(destinatario, asunto, cuerpo, pdfUrl) {
 }
 
 function obtenerResumenLiquidacion(liquidacionId) {
-  var gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", liquidacionId);
-  var fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", liquidacionId);
-  var totalGastos = calcularTotalGastos(gastos);
-  var totalFletes = calcularTotalFletes(fletes);
-  var balance = calcularBalance(fletes, gastos);
-  var totalPorDia = {};
-  var diasSet = {};
-  for (var i = 0; i < gastos.length; i++) { diasSet[gastos[i].diaSemana] = true; }
-  var dias = Object.keys(diasSet);
-  for (var d = 0; d < dias.length; d++) { totalPorDia[dias[d]] = calcularTotalPorDia(gastos, dias[d]); }
+  const gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", liquidacionId);
+  const fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", liquidacionId);
+  const totalGastos = calcularTotalGastos(gastos);
+  const totalFletes = calcularTotalFletes(fletes);
+  const balance = calcularBalance(fletes, gastos);
+  const totalPorDia = {};
+  const diasSet = {};
+  for (let i = 0; i < gastos.length; i++) { diasSet[gastos[i].diaSemana] = true; }
+  const dias = Object.keys(diasSet);
+  for (let d = 0; d < dias.length; d++) { totalPorDia[dias[d]] = calcularTotalPorDia(gastos, dias[d]); }
   return { totalGastos: totalGastos, totalFletes: totalFletes, balance: balance, totalPorDia: totalPorDia, gastos: gastos, fletes: fletes };
 }
 
 function compararLiquidaciones(idA, idB) {
-  var resumenA = obtenerResumenLiquidacion(idA);
-  var resumenB = obtenerResumenLiquidacion(idB);
-  var balanceA = calcularBalance(resumenA.totalFletes > 0 ? [{ monto: resumenA.totalFletes }] : [], [{ monto: resumenA.totalGastos }]);
-  var balanceB = calcularBalance(resumenB.totalFletes > 0 ? [{ monto: resumenB.totalFletes }] : [], [{ monto: resumenB.totalGastos }]);
-  var ganador = null;
+  const resumenA = obtenerResumenLiquidacion(idA);
+  const resumenB = obtenerResumenLiquidacion(idB);
+  const balanceA = calcularBalance(resumenA.totalFletes > 0 ? [{ monto: resumenA.totalFletes }] : [], [{ monto: resumenA.totalGastos }]);
+  const balanceB = calcularBalance(resumenB.totalFletes > 0 ? [{ monto: resumenB.totalFletes }] : [], [{ monto: resumenB.totalGastos }]);
+  let ganador = null;
   if (balanceA > balanceB) ganador = idA;
   else if (balanceB > balanceA) ganador = idB;
   return {
@@ -251,16 +251,16 @@ function compararLiquidaciones(idA, idB) {
 }
 
 function obtenerEstadoVehiculo() {
-  var vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", obtenerPlacaActiva())[0];
+  const vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", obtenerPlacaActiva())[0];
   if (!vehiculo) return [];
-  var config = {};
-  var configFilas = leerFilas(obtenerHoja("Config"), 2);
-  for (var i = 0; i < configFilas.length; i++) { config[configFilas[i].clave] = configFilas[i].valor; }
+  const config = {};
+  const configFilas = leerFilas(obtenerHoja("Config"), 2);
+  for (let i = 0; i < configFilas.length; i++) { config[configFilas[i].clave] = configFilas[i].valor; }
   return detectarAlertasMantenimiento(vehiculo, config, new Date().toISOString().split("T")[0]);
 }
 
 function obtenerPlacaActiva() {
-  var liq = obtenerLiquidacionAbierta();
+  const liq = obtenerLiquidacionAbierta();
   return liq ? liq.placa : null;
 }
 
@@ -269,15 +269,15 @@ function preguntarIA(pregunta, liquidacionId) {
 }
 
 function verificarPIN(pin) {
-  var prop = PropertiesService.getScriptProperties();
-  var pinGuardado = prop.getProperty("PIN");
+  const prop = PropertiesService.getScriptProperties();
+  const pinGuardado = prop.getProperty("PIN");
   if (!pinGuardado) { prop.setProperty("PIN", pin); return true; }
   return pinGuardado === pin;
 }
 
 function obtenerLiquidacionAbierta() {
-  var hoja = obtenerHoja("Liquidaciones");
-  var filas = leerFilas(hoja, 2);
-  for (var i = 0; i < filas.length; i++) { if (filas[i].estado === "abierta") return filas[i]; }
+  const hoja = obtenerHoja("Liquidaciones");
+  const filas = leerFilas(hoja, 2);
+  for (let i = 0; i < filas.length; i++) { if (filas[i].estado === "abierta") return filas[i]; }
   return null;
 }
