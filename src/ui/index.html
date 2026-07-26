@@ -29,6 +29,7 @@ h3{font-size:1rem;margin:8px 0 4px}
 .cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
 .card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer;transition:transform .1s}
 .card:active{transform:scale(.97)}
+.card.selected{border:2px solid #1a73e8;background:#e8f0fe}
 .card .cat-name{font-size:.85rem;font-weight:600;color:#5f6368}
 .card .cat-monto{font-size:1.1rem;font-weight:700;color:#1a73e8;margin-top:4px}
 .card .cat-suggest{font-size:.75rem;color:#9aa0a6;margin-top:2px}
@@ -131,6 +132,11 @@ h3{font-size:1rem;margin:8px 0 4px}
   </div>
   <button class="btn btn-primary" id="btn-agregar-gasto">Agregar gasto</button>
 
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn btn-danger" id="btn-cerrar">Cerrar viaje</button>
+    <button class="btn btn-secondary" id="btn-limpiar">Limpiar</button>
+  </div>
+
   <div class="tabs" style="margin-top:20px">
     <div class="tab active" data-tab="resumen">Resumen</div>
     <div class="tab" data-tab="gastos">Gastos</div>
@@ -200,6 +206,7 @@ var GAS = {
 var PLACA = "ABC-123";
 var LIQUIDACION_ID = null;
 var cerraduraData = null;
+var categoriaSeleccionada = null;
 
 function showScreen(name) {
   document.getElementById("pin-screen").style.display = name === "pin" ? "flex" : "none";
@@ -259,7 +266,6 @@ function loadCategorias() {
     return '<div class="card" data-cat="' + c.name + '">' +
       '<div class="cat-name">' + c.icon + ' ' + c.name + '</div>' +
       '<div class="cat-monto">$0</div>' +
-      '<div class="cat-suggest">Sugerencia: último monto</div>' +
       '</div>';
   }).join("");
 
@@ -267,6 +273,9 @@ function loadCategorias() {
     var card = e.target.closest(".card");
     if (!card) return;
     var cat = card.dataset.cat;
+    categoriaSeleccionada = cat;
+    grid.querySelectorAll(".card.selected").forEach(function(c) { c.classList.remove("selected"); });
+    card.classList.add("selected");
     var montoInput = document.getElementById("gasto-monto");
     montoInput.value = card.querySelector(".cat-monto").textContent.replace("$", "");
     document.getElementById("gasto-descripcion").focus();
@@ -299,8 +308,7 @@ function loadAlertas() {
 }
 
 async function agregarGasto() {
-  var cat = document.querySelector(".card:hover") || document.querySelector(".card.selected");
-  var categoria = cat ? cat.dataset.cat : "Otro";
+  var categoria = categoriaSeleccionada || "Otro";
   var fecha = document.getElementById("gasto-fecha").value;
   var desc = document.getElementById("gasto-descripcion").value;
   var monto = parseFloat(document.getElementById("gasto-monto").value);
@@ -338,6 +346,7 @@ function loadFletes() {
   }).catch(function(){});
 }
 
+function setupCerramientoHandlers() {
   document.getElementById("btn-email").addEventListener("click", function() {
     document.getElementById("email-dialog").classList.toggle("hidden");
   });
@@ -371,7 +380,7 @@ async function cerrarViaje() {
       '<div class="row total ' + balCls + '"><span>Balance</span><span>$' + cerraduraData.balance.toLocaleString("es-CO") + '</span></div>' +
       (cerraduraData.consumoKm ? '<div class="row"><span>Consumo ACPM</span><span>$' + cerraduraData.consumoKm.toFixed(2) + '/km</span></div>' : '') +
       '</div>';
-    var waUrl = GAS.enviarWhatsApp(cerraduraData.id, cerraduraData.pdfUrl || "", cerraduraData.balance);
+    var waUrl = await GAS.enviarWhatsApp(cerraduraData.id, cerraduraData.pdfUrl || "", cerraduraData.balance);
     document.getElementById("btn-wa").href = waUrl;
     document.getElementById("btn-pdf").href = cerraduraData.pdfUrl || "#";
     if (!cerraduraData.pdfUrl) {
@@ -391,6 +400,7 @@ function init() {
   document.getElementById("pin-input").addEventListener("keydown", function(e) {
     if (e.key === "Enter") verifyPIN();
   });
+  setupCerramientoHandlers();
 
   document.getElementById("btn-hoy").addEventListener("click", function() {
     var today = new Date().toISOString().split("T")[0];
