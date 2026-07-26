@@ -1,24 +1,398 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liquidación de Fletes</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Argoty — Liquidación de Fletes</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:12px;max-width:480px;margin:0 auto;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+h1{font-size:1.3rem;margin:8px 0;text-align:center}
+h2{font-size:1.1rem;margin:12px 0 8px;color:#1a73e8}
+h3{font-size:1rem;margin:8px 0 4px}
+
+/* PIN */
+#pin-screen{display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;min-height:80vh}
+#pin-screen input{font-size:1.6rem;text-align:center;letter-spacing:8px;width:200px;padding:12px;border:2px solid #1a73e8;border-radius:12px;outline:none}
+#pin-screen input:focus{border-color:#1557b0}
+#pin-screen button{width:100%;max-width:200px;padding:12px;font-size:1.1rem;background:#1a73e8;color:#fff;border:none;border-radius:12px;cursor:pointer}
+#pin-screen button:active{background:#1557b0}
+#pin-error{color:#d93025;font-size:.9rem;display:none}
+
+/* Main */
+#main-screen{display:none}
+#alertas-banner{background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:.9rem;display:none}
+#alertas-banner.visible{display:block}
+#alertas-banner ul{margin:6px 0 0 18px}
+
+/* Cards */
+.cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+.card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer;transition:transform .1s}
+.card:active{transform:scale(.97)}
+.card .cat-name{font-size:.85rem;font-weight:600;color:#5f6368}
+.card .cat-monto{font-size:1.1rem;font-weight:700;color:#1a73e8;margin-top:4px}
+.card .cat-suggest{font-size:.75rem;color:#9aa0a6;margin-top:2px}
+
+/* Form */
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:#5f6368;margin-bottom:2px}
+.form-group input,.form-group select{width:100%;padding:10px;font-size:1rem;border:1px solid #dadce0;border-radius:8px;outline:none}
+.form-group input:focus,.form-group select:focus{border-color:#1a73e8}
+.form-group select{background:#fff;-webkit-appearance:none}
+.row{display:flex;gap:8px}
+.row .form-group{flex:1}
+.btn{padding:10px 16px;font-size:.95rem;border:none;border-radius:8px;cursor:pointer;font-weight:600}
+.btn-primary{background:#1a73e8;color:#fff;width:100%}
+.btn-primary:active{background:#1557b0}
+.btn-danger{background:#d93025;color:#fff}
+.btn-success{background:#1e8e3e;color:#fff}
+.btn-secondary{background:#5f6368;color:#fff}
+.btn-row{display:flex;gap:8px;margin-top:8px}
+.btn-row .btn{flex:1}
+
+/* Summary */
+.summary{background:#fff;border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.summary .row{display:flex;justify-content:space-between;padding:4px 0;font-size:.95rem}
+.summary .row.total{border-top:2px solid #dadce0;margin-top:8px;padding-top:8px;font-weight:700;font-size:1.1rem}
+.summary .row.balance{color:#1e8e3e}
+.summary .row.balance.negative{color:#d93025}
+
+.tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid #dadce0}
+.tab{flex:1;text-align:center;padding:8px;font-size:.9rem;font-weight:600;color:#5f6368;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab.active{color:#1a73e8;border-bottom-color:#1a73e8}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Compare */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.compare-card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);text-align:center;font-size:.85rem}
+.compare-card .val{font-size:1.2rem;font-weight:700}
+.compare-card .label{color:#5f6368;font-size:.75rem}
+.compare-card.winner{background:#e8f5e9;border:2px solid #1e8e3e}
+
+/* AI */
+#ai-container{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#ai-response{background:#f8f9fa;border-radius:8px;padding:10px;font-size:.9rem;min-height:40px;max-height:200px;overflow-y:auto;white-space:pre-wrap;margin-top:8px}
+#ai-response:empty::before{content:"Escribí una pregunta...";color:#9aa0a6}
+
+/* List */
+.expense-list{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:12px}
+.expense-item{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:.9rem}
+.expense-item:last-child{border-bottom:none}
+.expense-item .desc{flex:1}
+.expense-item .amt{font-weight:600;min-width:80px;text-align:right}
+.expense-item .cat{color:#9aa0a6;font-size:.75rem}
+.expense-item.addition{background:#fffde7}
+
+/* Date picker */
+.date-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.date-row input[type="date"]{flex:1;padding:8px;font-size:.9rem;border:1px solid #dadce0;border-radius:8px}
+.today-btn{padding:8px 12px;background:#e8f0fe;border:1px solid #1a73e8;border-radius:8px;font-size:.85rem;color:#1a73e8;cursor:pointer;white-space:nowrap}
+
+/* Footer */
+.footer{margin-top:16px;padding:12px;text-align:center;font-size:.75rem;color:#9aa0a6}
+
+/* Loading */
+.loading{display:inline-block;width:20px;height:20px;border:3px solid #dadce0;border-top-color:#1a73e8;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+</style>
 </head>
 <body>
-  <div id="app">
-    <div id="pin-screen">
-      <h1>Transportes Argoty</h1>
-      <input type="password" id="pin-input" placeholder="PIN" maxlength="6">
-      <button id="pin-submit">Ingresar</button>
-    </div>
-    <div id="main-screen" style="display:none">
-      <h1>Carga de Viaje</h1>
-      <div id="alertas"></div>
-      <div id="liquidacion-form"></div>
-      <div id="resumen"></div>
+
+<div id="pin-screen">
+  <h1>🚛 Argoty</h1>
+  <p style="color:#5f6368;font-size:.9rem">Liquidación de fletes</p>
+  <input type="password" id="pin-input" placeholder="PIN" maxlength="6" inputmode="numeric" autocomplete="off">
+  <button id="pin-submit">Ingresar</button>
+  <p id="pin-error">PIN incorrecto</p>
+</div>
+
+<div id="main-screen">
+  <div id="alertas-banner"></div>
+
+  <h2>Nuevo Gasto</h2>
+  <div class="cards-grid" id="categorias-grid"></div>
+
+  <div class="form-group">
+    <label>Fecha</label>
+    <div class="date-row">
+      <input type="date" id="gasto-fecha">
+      <button type="button" class="today-btn" id="btn-hoy">Hoy</button>
     </div>
   </div>
+  <div class="form-group">
+    <label>Descripción</label>
+    <input type="text" id="gasto-descripcion" placeholder="Ej: Gasolina, peaje…" autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label>Monto ($)</label>
+    <input type="number" id="gasto-monto" placeholder="0" step="1000" min="0">
+  </div>
+  <button class="btn btn-primary" id="btn-agregar-gasto">Agregar gasto</button>
+
+  <div class="tabs" style="margin-top:20px">
+    <div class="tab active" data-tab="resumen">Resumen</div>
+    <div class="tab" data-tab="gastos">Gastos</div>
+    <div class="tab" data-tab="fletes">Fletes</div>
+    <div class="tab" data-tab="comparar">Comparar</div>
+  </div>
+
+  <div class="tab-content active" id="tab-resumen">
+    <div class="summary" id="resumen-resumen"></div>
+  </div>
+  <div class="tab-content" id="tab-gastos">
+    <div id="lista-gastos"></div>
+  </div>
+  <div class="tab-content" id="tab-fletes">
+    <div id="lista-fletes"></div>
+  </div>
+  <div class="tab-content" id="tab-comparar">
+    <div class="compare-grid" id="compare-grid"></div>
+  </div>
+
+  <div id="ai-container">
+    <h3>Asistente IA</h3>
+    <div class="row">
+      <input type="text" id="ia-pregunta" placeholder="Preguntá algo…" autocomplete="off" style="flex:1">
+      <button class="btn btn-secondary" id="btn-ia" style="flex:0;white-space:nowrap">Preguntar</button>
+    </div>
+    <div id="ai-response"></div>
+  </div>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn btn-success" id="btn-cerrar">Cerrar viaje</button>
+    <button class="btn btn-danger" id="btn-limpiar">Limpiar</button>
+  </div>
+
+  <div class="footer">Transportes Argoty &copy; 2026</div>
+</div>
+
+<script>
+var GAS = {
+  call: function(fn, args) {
+    return new Promise(function(resolve, reject) {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn].apply(null, args);
+    });
+  },
+  pin: function(pin) { return GAS.call("verificarPIN", [pin]); },
+  crearLiquidacion: function(placa, fechaInicio, kmInicial) { return GAS.call("crearLiquidacion", [placa, fechaInicio, kmInicial]); },
+  agregarGasto: function(lid, cat, desc, monto, fecha, adicional) { return GAS.call("agregarGasto", [lid, cat, desc, monto, fecha, adicional]); },
+  agregarFlete: function(lid, concepto, cliente, tipoCarga, monto) { return GAS.call("agregarFlete", [lid, concepto, cliente, tipoCarga, monto]); },
+  cerrarLiquidacion: function(lid, kmFinal) { return GAS.call("cerrarLiquidacion", [lid, kmFinal]); },
+  obtenerResumen: function(lid) { return GAS.call("obtenerResumenLiquidacion", [lid]); },
+  comparar: function(idA, idB) { return GAS.call("compararLiquidaciones", [idA, idB]); },
+  estadoVehiculo: function() { return GAS.call("obtenerEstadoVehiculo", []); },
+  preguntarIA: function(preg, lid) { return GAS.call("preguntarIA", [preg, lid]); },
+};
+
+var PLACA = "ABC-123";
+var LIQUIDACION_ID = null;
+
+function showScreen(name) {
+  document.getElementById("pin-screen").style.display = name === "pin" ? "flex" : "none";
+  document.getElementById("main-screen").style.display = name === "main" ? "block" : "none";
+}
+
+async function verifyPIN() {
+  var pin = document.getElementById("pin-input").value;
+  if (pin.length < 4) {
+    document.getElementById("pin-error").textContent = "Mínimo 4 dígitos";
+    document.getElementById("pin-error").style.display = "block";
+    return;
+  }
+  try {
+    var ok = await GAS.pin(pin);
+    if (ok) {
+      document.getElementById("pin-error").style.display = "none";
+      openLiquidacion();
+    } else {
+      document.getElementById("pin-error").textContent = "PIN incorrecto";
+      document.getElementById("pin-error").style.display = "block";
+    }
+  } catch (e) {
+    document.getElementById("pin-error").textContent = "Error al verificar PIN";
+    document.getElementById("pin-error").style.display = "block";
+  }
+}
+
+async function openLiquidacion() {
+  showScreen("main");
+  try {
+    var resumen = await GAS.obtenerResumen("current");
+    LIQUIDACION_ID = resumen.id;
+  } catch (e) {
+    LIQUIDACION_ID = null;
+  }
+  loadCategorias();
+  loadResumen();
+  loadAlertas();
+}
+
+function loadCategorias() {
+  var cats = [
+    { name: "Diario", icon: "☕" },
+    { name: "ACPM", icon: "⛽" },
+    { name: "Peajes", icon: "🛣️" },
+    { name: "Comisión", icon: "💰" },
+    { name: "Coteros", icon: "🚚" },
+    { name: "Descargue", icon: "📦" },
+    { name: "Envarillada", icon: "🔧" },
+    { name: "Manifiesto", icon: "📋" },
+    { name: "Mantenimiento", icon: "🔩" },
+    { name: "Otro", icon: "📝" }
+  ];
+  var grid = document.getElementById("categorias-grid");
+  grid.innerHTML = cats.map(function(c) {
+    return '<div class="card" data-cat="' + c.name + '">' +
+      '<div class="cat-name">' + c.icon + ' ' + c.name + '</div>' +
+      '<div class="cat-monto">$0</div>' +
+      '<div class="cat-suggest">Sugerencia: último monto</div>' +
+      '</div>';
+  }).join("");
+
+  grid.addEventListener("click", function(e) {
+    var card = e.target.closest(".card");
+    if (!card) return;
+    var cat = card.dataset.cat;
+    var montoInput = document.getElementById("gasto-monto");
+    montoInput.value = card.querySelector(".cat-monto").textContent.replace("$", "");
+    document.getElementById("gasto-descripcion").focus();
+  });
+}
+
+function loadResumen() {
+  if (!LIQUIDACION_ID) return;
+  GAS.obtenerResumen(LIQUIDACION_ID).then(function(res) {
+    var el = document.getElementById("resumen-resumen");
+    var balCls = res.balance >= 0 ? "" : "negative";
+    var balSign = res.balance >= 0 ? "+" : "";
+    el.innerHTML =
+      '<div class="row"><span>Gastos</span><span>$' + res.totalGastos.toLocaleString("es-CO") + '</span></div>' +
+      '<div class="row"><span>Fletes</span><span>$' + res.totalFletes.toLocaleString("es-CO") + '</span></div>' +
+      '<div class="row total ' + balCls + '"><span>Balance</span><span>' + balSign + '$' + res.balance.toLocaleString("es-CO") + '</span></div>';
+  }).catch(function(){});
+}
+
+function loadAlertas() {
+  GAS.estadoVehiculo().then(function(alertas) {
+    var banner = document.getElementById("alertas-banner");
+    if (alertas.length > 0) {
+      banner.classList.add("visible");
+      banner.innerHTML = "⚠️ Mantenimiento pendiente: " + alertas.join(", ");
+    } else {
+      banner.classList.remove("visible");
+    }
+  }).catch(function(){});
+}
+
+async function agregarGasto() {
+  var cat = document.querySelector(".card:hover") || document.querySelector(".card.selected");
+  var categoria = cat ? cat.dataset.cat : "Otro";
+  var fecha = document.getElementById("gasto-fecha").value;
+  var desc = document.getElementById("gasto-descripcion").value;
+  var monto = parseFloat(document.getElementById("gasto-monto").value);
+  if (!fecha || !desc || !monto) return alert("Completá todos los campos");
+  if (!LIQUIDACION_ID) return alert("Abrí una liquidación primero");
+  await GAS.agregarGasto(LIQUIDACION_ID, categoria, desc, monto, fecha, false);
+  document.getElementById("gasto-descripcion").value = "";
+  document.getElementById("gasto-monto").value = "";
+  loadResumen();
+  loadGastos();
+}
+
+function loadGastos() {
+  if (!LIQUIDACION_ID) return;
+  GAS.obtenerResumen(LIQUIDACION_ID).then(function(res) {
+    var el = document.getElementById("lista-gastos");
+    el.innerHTML = res.gastos.map(function(g) {
+      var cls = g.esAdicional ? " addition" : "";
+      return '<div class="expense-item' + cls + '">' +
+        '<div><div class="desc">' + g.descripcion + '</div><div class="cat">' + g.categoria + ' — ' + g.diaSemana + '</div></div>' +
+        '<div class="amt">$' + g.monto.toLocaleString("es-CO") + '</div></div>';
+    }).join("");
+  }).catch(function(){});
+}
+
+function loadFletes() {
+  if (!LIQUIDACION_ID) return;
+  GAS.obtenerResumen(LIQUIDACION_ID).then(function(res) {
+    var el = document.getElementById("lista-fletes");
+    el.innerHTML = res.fletes.map(function(f) {
+      return '<div class="expense-item">' +
+        '<div><div class="desc">' + f.concepto + ' — ' + f.cliente + '</div><div class="cat">' + f.tipoCarga + '</div></div>' +
+        '<div class="amt">$' + f.monto.toLocaleString("es-CO") + '</div></div>';
+    }).join("");
+  }).catch(function(){});
+}
+
+async function cerrarViaje() {
+  var kmFinal = prompt("Km final:");
+  if (!kmFinal || isNaN(kmFinal)) return;
+  try {
+    await GAS.cerrarLiquidacion(LIQUIDACION_ID, parseInt(kmFinal));
+    alert("Viaje cerrado exitosamente");
+    loadResumen();
+    loadAlertas();
+  } catch (e) {
+    alert("Error al cerrar: " + e.message);
+  }
+}
+
+function init() {
+  document.getElementById("pin-submit").addEventListener("click", verifyPIN);
+  document.getElementById("pin-input").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") verifyPIN();
+  });
+
+  document.getElementById("btn-hoy").addEventListener("click", function() {
+    var today = new Date().toISOString().split("T")[0];
+    document.getElementById("gasto-fecha").value = today;
+  });
+  document.getElementById("gasto-fecha").value = new Date().toISOString().split("T")[0];
+
+  document.getElementById("btn-agregar-gasto").addEventListener("click", agregarGasto);
+  document.getElementById("btn-cerrar").addEventListener("click", cerrarViaje);
+  document.getElementById("btn-limpiar").addEventListener("click", function() {
+    document.getElementById("gasto-descripcion").value = "";
+    document.getElementById("gasto-monto").value = "";
+  });
+
+  document.querySelectorAll(".tab").forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+      document.querySelectorAll(".tab-content").forEach(function(c) { c.classList.remove("active"); });
+      tab.classList.add("active");
+      document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+      if (tab.dataset.tab === "gastos") loadGastos();
+      if (tab.dataset.tab === "fletes") loadFletes();
+      if (tab.dataset.tab === "comparar") loadComparar();
+    });
+  });
+
+  document.getElementById("btn-ia").addEventListener("click", function() {
+    var preg = document.getElementById("ia-pregunta").value;
+    if (!preg) return;
+    var resp = document.getElementById("ai-response");
+    resp.textContent = "Cargando…";
+    GAS.preguntarIA(preg, LIQUIDACION_ID || "current").then(function(text) {
+      resp.textContent = text;
+    }).catch(function(e) {
+      resp.textContent = "Error: " + e.message;
+    });
+  });
+}
+
+async function loadComparar() {
+  GAS.comparar("current", "previous").then(function(res) {
+    var grid = document.getElementById("compare-grid");
+    grid.innerHTML =
+      '<div class="compare-card"><div class="label">Balance</div><div class="val">$' + res.balanceA.toLocaleString("es-CO") + '</div></div>' +
+      '<div class="compare-card"><div class="label">Balance</div><div class="val">$' + res.balanceB.toLocaleString("es-CO") + '</div></div>';
+  }).catch(function(){});
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
 </body>
 </html>
