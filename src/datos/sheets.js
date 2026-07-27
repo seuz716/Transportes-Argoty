@@ -20,25 +20,25 @@ function agregarEncabezados(hoja, nombre) {
   let encabezados = [];
   switch (nombre) {
     case "Liquidaciones":
-      encabezados = ["id", "placa", "fecha_inicio", "fecha_fin", "km_inicial", "km_final", "estado", "total_gastos", "total_fletes", "balance", "pdf_url"];
+      encabezados = ["id", "placa", "fechaInicio", "fechaFin", "kmInicial", "kmFinal", "estado", "totalGastos", "totalFletes", "balance", "consumoKm", "pdfUrl"];
       break;
     case "Gastos":
-      encabezados = ["id", "liquidacion_id", "fecha", "dia_semana", "categoria", "descripcion", "monto", "es_adicional"];
+      encabezados = ["id", "liquidacionId", "fecha", "diaSemana", "categoria", "descripcion", "monto", "esAdicional"];
       break;
     case "Fletes":
-      encabezados = ["id", "liquidacion_id", "concepto", "cliente", "tipo_carga", "monto"];
+      encabezados = ["id", "liquidacionId", "concepto", "cliente", "tipoCarga", "monto"];
       break;
     case "Vehiculo":
-      encabezados = ["placa", "km_actual", "fecha_ultimo_aceite", "km_ultimo_aceite", "fecha_ultima_engrasada", "fecha_ultima_revision_frenos", "fecha_ultimo_cambio_llantas", "km_ultimo_cambio_llantas"];
+      encabezados = ["placa", "kmActual", "fechaUltimoAceite", "kmUltimoAceite", "fechaUltimaEngrasada", "fechaUltimaRevisionFrenos", "fechaUltimoCambioLlantas", "kmUltimoCambioLlantas"];
       break;
     case "Bitacora":
-      encabezados = ["id", "liquidacion_id", "fecha", "nota", "monto_opcional", "convertido_a_gasto"];
+      encabezados = ["id", "liquidacionId", "fecha", "nota", "montoOpcional", "convertidoAGasto"];
       break;
     case "Config":
       encabezados = ["clave", "valor"];
       break;
     case "Categorias":
-      encabezados = ["nombre", "orden"];
+      encabezados = ["nombre", "orden", "icono"];
       break;
     default:
       encabezados = ["id", "nombre"];
