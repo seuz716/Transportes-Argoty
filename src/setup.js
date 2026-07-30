@@ -4,8 +4,8 @@
  */
 
 function setupInicial() {
-  const SPREADSHEET_ID = "";
-  const PIN_INICIAL = "";
+const SPREADSHEET_ID = "";
+const PIN_INICIAL = "";
 
   if (!SPREADSHEET_ID || !PIN_INICIAL) {
     throw new Error("Debe configurar SPREADSHEET_ID y PIN_INICIAL antes de ejecutar setupInicial.");
