@@ -95,6 +95,7 @@ h3{font-size:1rem;margin:8px 0 4px}
 
 <div id="main-screen">
   <div id="alertas-banner"></div>
+  <span id="pending-counter" style="display:none;font-size:.8rem;color:#d93025;margin-left:8px"></span>
 
   <div id="balance-sticky" class="hidden">
     <div class="summary" style="margin-bottom:0">
@@ -268,13 +269,81 @@ var ICONOS = {
   "Otro": "\uD83D\uDCDD"
 };
 
+var GAS_QUEUE_KEY = "flota_offline_queue";
+var GAS_TIMEOUT_MS = 15000;
+
+function _gasTimeout(ms) {
+  return new Promise(function(_, reject) {
+    setTimeout(function() { reject(new Error("Tiempo de espera agotado — revise su conexion")); }, ms);
+  });
+}
+
+function _gasSaveQueue(queue) {
+  localStorage.setItem(GAS_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function _gasLoadQueue() {
+  try { return JSON.parse(localStorage.getItem(GAS_QUEUE_KEY) || "[]"); } catch (e) { return []; }
+}
+
+function _gasProcessQueue() {
+  var queue = _gasLoadQueue();
+  if (queue.length === 0) return;
+  var count = queue.length;
+  var processed = 0;
+  queue.forEach(function(op, idx) {
+    GAS.call(op.fn, op.args).then(function() {
+      queue.splice(idx, 1);
+      _gasSaveQueue(queue);
+      processed++;
+    }).catch(function() {
+      processed++;
+    });
+  });
+  var interval = setInterval(function() {
+    if (processed >= count) {
+      clearInterval(interval);
+      _gasUpdatePendingCount();
+    }
+  }, 1000);
+}
+
+function _gasUpdatePendingCount() {
+  var count = _gasLoadQueue().length;
+  var el = document.getElementById("pending-counter");
+  if (!el) return;
+  if (count > 0) {
+    el.textContent = count + " pendiente" + (count > 1 ? "s" : "");
+    el.style.display = "inline";
+  } else {
+    el.style.display = "none";
+  }
+}
+
+function _gasQueueOperation(fn, args) {
+  var queue = _gasLoadQueue();
+  queue.push({ fn: fn, args: args, ts: Date.now() });
+  _gasSaveQueue(queue);
+  _gasUpdatePendingCount();
+}
+
 var GAS = {
   call: function(fn, args) {
     var token = localStorage.getItem("flota_token") || "";
     args = args || [];
     args.push(token);
-    return new Promise(function(resolve, reject) {
-      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn].apply(null, args);
+    return Promise.race([
+      new Promise(function(resolve, reject) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn].apply(null, args);
+      }),
+      _gasTimeout(GAS_TIMEOUT_MS)
+    ]).catch(function(err) {
+      var isMutation = ["agregarGasto","agregarFlete","editarGasto","eliminarGasto","editarFlete","eliminarFlete","cerrarLiquidacion","agregarBitacora","convertirBitacoraAGasto","crearLiquidacion","enviarPorEmail"].indexOf(fn) >= 0;
+      if (isMutation && err.message.indexOf("Tiempo de espera") >= 0) {
+        _gasQueueOperation(fn, args.slice(0, -1));
+        return { queued: true, message: "Guardado sin conexion — se sincronizara cuando vuelva la señal" };
+      }
+      throw err;
     });
   },
   pin: function(pin) { return GAS.call("verificarPIN", [pin]); },
@@ -746,10 +815,12 @@ async function confirmarCierre() {
 }
 
 function init() {
+  _gasProcessQueue();
   document.getElementById("pin-submit").addEventListener("click", verifyPIN);
   document.getElementById("pin-input").addEventListener("keydown", function(e) {
     if (e.key === "Enter") verifyPIN();
   });
+  setInterval(_gasProcessQueue, 30000);
   setupCerramientoHandlers();
 
   document.getElementById("btn-hoy").addEventListener("click", function() {
