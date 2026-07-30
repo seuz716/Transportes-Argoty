@@ -44,16 +44,52 @@ function obtenerLiquidacionAbierta() {
 
 // ==================== PIN ====================
 
-function verificarPIN(pin) {
+const PIN_MAX_INTENTOS = 5;
+const PIN_BLOQUEO_SEGUNDOS = 300; // 5 minutos
+
+function obtenerDeviceId() {
+  var id = PropertiesService.getScriptProperties().getProperty("deviceId");
+  if (!id) {
+    id = Utilities.getUuid();
+    PropertiesService.getScriptProperties().setProperty("deviceId", id);
+  }
+  return id;
+}
+
+function verificarPIN(pin, deviceId) {
+  var cache = CacheService.getScriptCache();
   var prop = PropertiesService.getScriptProperties();
   var pinGuardado = prop.getProperty("PIN");
+
   if (!pinGuardado) {
-    prop.setProperty("PIN", pin);
-  } else if (pinGuardado !== pin) {
+    throw new Error("PIN no configurado. Ejecute setupInicial() desde el editor de Apps Script.");
+  }
+
+  var lockKey = "pin_bloqueado_" + (deviceId || "unknown");
+  var bloqueado = cache.get(lockKey);
+  if (bloqueado) {
+    throw new Error("Cuenta bloqueada temporalmente por múltiples intentos fallidos. Intente nuevamente en 5 minutos.");
+  }
+
+  if (pinGuardado !== pin) {
+    var intentosKey = "pin_intentos_" + (deviceId || "unknown");
+    var intentos = parseInt(cache.get(intentosKey) || "0", 10);
+    intentos++;
+
+    if (intentos >= PIN_MAX_INTENTOS) {
+      cache.put(lockKey, "1", PIN_BLOQUEO_SEGUNDOS);
+      cache.remove(intentosKey);
+      throw new Error("Demasiados intentos fallidos. La cuenta se ha bloqueado por " + (PIN_BLOQUEO_SEGUNDOS / 60) + " minutos.");
+    }
+
+    cache.put(intentosKey, intentos.toString(), PIN_BLOQUEO_SEGUNDOS);
     return false;
   }
+
+  cache.remove("pin_intentos_" + (deviceId || "unknown"));
+
   var token = Utilities.getUuid();
-  CacheService.getScriptCache().put("session_" + token, "1", 21600);
+  CacheService.getScriptCache().put("session_" + token, "1", 21600); // 6 horas
   return token;
 }
 
@@ -100,6 +136,10 @@ function _obtenerResumenLiquidacion(liquidacionId) {
   };
   cache.put(cacheKey, JSON.stringify(resultado), 10);
   return resultado;
+}
+
+function _invalidarCacheResumen(liquidacionId) {
+  CacheService.getScriptCache().remove("resumen_" + liquidacionId);
 }
 
 // ==================== Liquidaciones (public) ====================
@@ -161,9 +201,7 @@ function cerrarLiquidacion(liquidacionId, kmFinal, token) {
   var totalFletes = calcularTotalFletes(fletes);
   var balance = calcularBalance(fletes, gastos);
 
-  function _invalidarCacheResumen(liquidacionId) {
-  CacheService.getScriptCache().remove("resumen_" + liquidacionId);
-}
+  _invalidarCacheResumen(resolvedId);
 
 var totalACPM = 0;
   for (var j = 0; j < gastos.length; j++) {
@@ -181,6 +219,19 @@ var totalACPM = 0;
 
   var valores = Object.values(liqFilas[idx]);
   hojaLiq.getRange(idx + 2, 1, 1, valores.length).setValues([valores]);
+
+  if (vehiculo) {
+    var vehHoja = obtenerHoja("Vehiculo");
+    var vehFilas = leerFilas(vehHoja, 2);
+    for (var vi = 0; vi < vehFilas.length; vi++) {
+      if (String(vehFilas[vi].placa) === String(placa)) {
+        vehFilas[vi].kmActual = Number(kmFinal);
+        var v2 = Object.values(vehFilas[vi]);
+        vehHoja.getRange(vi + 2, 1, 1, v2.length).setValues([v2]);
+        break;
+      }
+    }
+  }
 
   var pdfUrl = "";
   try {
@@ -226,8 +277,23 @@ function compararLiquidaciones(idA, idB, token) {
 
 // ==================== Gastos / Fletes ====================
 
+function _validarMonto(monto) {
+  if (typeof monto !== 'number' || isNaN(monto) || monto <= 0) {
+    throw new Error("El monto debe ser un número positivo");
+  }
+}
+
+function _validarLiquidacionAbierta(liquidacionId) {
+  var liq = buscarLiquidacion(liquidacionId);
+  if (!liq || liq.estado !== "abierta") {
+    throw new Error("La liquidacion no esta abierta");
+  }
+}
+
 function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdicional, token) {
   verificarSesion(token);
+  _validarMonto(monto);
+  _validarLiquidacionAbierta(liquidacionId);
   var hoja = obtenerHoja("Gastos");
   var id = obtenerProximoId(hoja);
   
@@ -260,6 +326,7 @@ function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdi
 
 function editarGasto(id, categoria, descripcion, monto, fecha, esAdicional, token) {
   verificarSesion(token);
+  _validarMonto(monto);
   var hoja = obtenerHoja("Gastos");
   
   var fechaNormalizada = fecha || "";
@@ -283,7 +350,10 @@ function editarGasto(id, categoria, descripcion, monto, fecha, esAdicional, toke
   };
   var filasGastos = leerFilas(hoja, 2);
   var gastoExistente = filasGastos.find(function(f) { return String(f.id) === String(id); });
-  if (gastoExistente) _invalidarCacheResumen(gastoExistente.liquidacionId);
+  if (gastoExistente) {
+    _validarLiquidacionAbierta(gastoExistente.liquidacionId);
+    _invalidarCacheResumen(gastoExistente.liquidacionId);
+  }
   return editarFila(hoja, "id", id, datos);
 }
 
@@ -298,6 +368,8 @@ function eliminarGasto(id, token) {
 
 function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto, token) {
   verificarSesion(token);
+  _validarMonto(monto);
+  _validarLiquidacionAbierta(liquidacionId);
   var hoja = obtenerHoja("Fletes");
   var id = obtenerProximoId(hoja);
   var flete = {
@@ -315,6 +387,7 @@ function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto, token)
 
 function editarFlete(id, concepto, cliente, tipoCarga, monto, token) {
   verificarSesion(token);
+  _validarMonto(monto);
   var hoja = obtenerHoja("Fletes");
   var datos = {
     concepto: concepto,
@@ -324,7 +397,10 @@ function editarFlete(id, concepto, cliente, tipoCarga, monto, token) {
   };
   var filasFletes = leerFilas(hoja, 2);
   var fleteExistente = filasFletes.find(function(f) { return String(f.id) === String(id); });
-  if (fleteExistente) _invalidarCacheResumen(fleteExistente.liquidacionId);
+  if (fleteExistente) {
+    _validarLiquidacionAbierta(fleteExistente.liquidacionId);
+    _invalidarCacheResumen(fleteExistente.liquidacionId);
+  }
   return editarFila(hoja, "id", id, datos);
 }
 
@@ -544,6 +620,7 @@ function convertirBitacoraAGasto(bitacoraId, categoria, token) {
   }
   if (idx === -1) throw new Error("Entrada de bitacora no encontrada");
   if (filas[idx].convertidoAGasto) throw new Error("Esta entrada ya fue convertida");
+  _validarLiquidacionAbierta(filas[idx].liquidacionId);
 
   var hojaGastos = obtenerHoja("Gastos");
   var id = obtenerProximoId(hojaGastos);

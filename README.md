@@ -110,28 +110,40 @@ npx jest --coverage  # Con reporte de cobertura
 ## Seguridad
 
 - PIN de 4-6 dígitos guardado en `PropertiesService` (no en localStorage del navegador)
+- **Rate limiting**: Bloqueo de 5 minutos tras 5 intentos fallidos de PIN
+- PIN **no se autoconfigura** - requiere configuración manual explícita
 - API key de Gemini solo en `PropertiesService` del servidor (nunca en el HTML del cliente)
 - Todo cálculo financiero se valida en el backend — nunca confiarse en totals que llegan del cliente
 - Respuestas de IA se renderizan con `textContent`, nunca `innerHTML`
 
-## Nuevas Funcionalidades (v0.2.0)
+## Nuevas Funcionalidades (v0.3.0)
 
-### Gastos Adicionales
+### Acceso Público
+- La app utiliza `ANYONE_ANONYMOUS` para acceso sin autenticación Google
+- Protección mediante PIN de 4-6 dígitos
+- Intentos fallidos bloquean la cuenta por 5 minutos
+
+### Gastos Adicionales (v0.2.0)
 - Marcar gastos como "adicionales" (no asignados a un día específico)
 - Badge "Adic." en la lista de gastos
 - Sección separada "Gastos adicionales" en el PDF
 - Subtotal de adicionales en el PDF
 
-### Cola Offline Mejorada
+### Cola Offline Mejorada (v0.2.0)
 - Reintentos automáticos (máximo 3 intentos)
 - Eliminación segura de operaciones procesadas
 - Prevención de operaciones duplicadas
 - Tooltip en contador de operaciones pendientes
 
-### UX Mejorado
+### UX Mejorado (v0.2.0)
 - Display dinámico del día de la semana al agregar gastos
 - Validación de fechas: si es adicional, la fecha es opcional
 - Contador de pendientes más visible con tooltip
+
+### Mejoras de Seguridad (v0.3.0)
+- Rate limiting del PIN implementado
+- PIN no autoconfigurable por seguridad
+- Cache de resúmenes reducido a 10 segundos
 
 ## Costos
 

@@ -4,12 +4,34 @@
 
 ### 🎯 Nuevas Funcionalidades
 
-#### Conductor en Liquidación
-- **Campo opcional "Conductor"** al crear un nuevo viaje
+#### Rate Limiting del PIN ✅
+- Contador de intentos fallidos en CacheService
+- **Bloqueo de 5 minutos** después de 5 intentos fallidos
+- Reset del contador al ingresar correctamente
+- **PIN no se autoconfigura** - requiere configuración manual
+
+#### Acceso público ANYONE_ANONYMOUS ✅
+- `appsscript.json` cambiado de `MYSELF` a `ANYONE_ANONYMOUS`
+- Acceso sin autenticación Google
+- Protección mediante PIN de 4-6 dígitos
+
+#### Gastos Adicionales ✅
+- Checkbox "Gasto adicional" en el formulario de gastos
+  - Permite marcar un gasto como no asignado a un día específico
+  - Al marcarlo, el campo de fecha se oculta automáticamente
+- Badge "Adic." en la lista de gastos
+  - Visual identification de gastos adicionales
+  - Fondo amarillo claro y texto azul
+- PDF mejorado
+  - Sección separada "Gastos adicionales" con subtotal
+  - Gastos por día solo incluye gastos con día asignado
+
+#### Conductor en Liquidación ✅
+- Campo opcional "Conductor" al crear un nuevo viaje
 - Se almacena en la hoja Liquidaciones y se muestra en el PDF
 - PDF actualizado: "Vehículo: SAV-792 | Conductor: Nombre | Km ..."
 
-#### Categoría al convertir Bitácora a Gasto
+#### Categoría al convertir Bitácora a Gasto ✅
 - Al hacer clic en "Convertir en gasto", pide seleccionar categoría
 - Lista completa de categorías disponibles
 - Default: "Otro"

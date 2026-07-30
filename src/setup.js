@@ -16,7 +16,8 @@ function setupInicial() {
   
   props.setProperty("SPREADSHEET_ID", SPREADSHEET_ID);
   props.setProperty("PIN", PIN_INICIAL);
-  props.setProperty("PDF_FOLDER", ""); // Vacío = raíz de Drive
+  var folder = DriveApp.createFolder("FLOTA_YC_Liquidaciones");
+  props.setProperty("PDF_FOLDER", folder.getId());
   
   // Crear hoja de Config con valores por defecto
   try {
