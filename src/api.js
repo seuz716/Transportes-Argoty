@@ -289,7 +289,7 @@ function obtenerEstadoVehiculo(token) {
 
 // ==================== WhatsApp / Email ====================
 
-function enviarWhatsApp(liquidacionId, pdfUrl, token) {
+function construirWhatsAppUrl(liquidacionId, pdfUrl, token) {
   verificarSesion(token);
   var resumen = _obtenerResumenLiquidacion(liquidacionId);
   var mensaje = "Liquidacion " + resumen.id + " completada. Balance: $" + resumen.balance.toLocaleString("es-CO") + ". PDF: " + pdfUrl;
@@ -389,4 +389,29 @@ function preguntarIA(pregunta, liquidacionId, token) {
   var text = content.parts[0].text;
   text = text.replace(/[\r\n]+/g, "\n").trim();
   return text;
+}
+
+// ==================== Bitacora ====================
+
+function agregarBitacora(liquidacionId, nota, montoOpcional, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Bitacora");
+  var id = obtenerProximoId(hoja);
+  var entry = {
+    id: String(id),
+    liquidacionId: liquidacionId,
+    fecha: new Date().toISOString().split("T")[0],
+    nota: nota,
+    montoOpcional: montoOpcional || 0,
+    convertidoAGasto: false,
+  };
+  agregarFila(hoja, entry);
+  return entry;
+}
+
+function obtenerBitacora(liquidacionId, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Bitacora");
+  var filas = leerFilas(hoja, 2);
+  return filas.filter(function(f) { return String(f.liquidacionId) === String(liquidacionId); });
 }

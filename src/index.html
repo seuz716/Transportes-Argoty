@@ -147,25 +147,41 @@ h3{font-size:1rem;margin:8px 0 4px}
       </div>
     </div>
 
-    <div class="tabs" style="margin-top:20px">
-      <div class="tab active" data-tab="resumen">Resumen</div>
-      <div class="tab" data-tab="gastos">Gastos</div>
-      <div class="tab" data-tab="fletes">Fletes</div>
-      <div class="tab" data-tab="comparar">Comparar</div>
-    </div>
+     <div class="tabs" style="margin-top:20px">
+       <div class="tab active" data-tab="resumen">Resumen</div>
+       <div class="tab" data-tab="gastos">Gastos</div>
+       <div class="tab" data-tab="fletes">Fletes</div>
+       <div class="tab" data-tab="bitacora">Bitacora</div>
+       <div class="tab" data-tab="comparar">Comparar</div>
+     </div>
 
-    <div class="tab-content active" id="tab-resumen">
-      <div class="summary" id="resumen-resumen"></div>
-    </div>
-    <div class="tab-content" id="tab-gastos">
-      <div id="lista-gastos"></div>
-    </div>
-    <div class="tab-content" id="tab-fletes">
-      <div id="lista-fletes"></div>
-    </div>
-    <div class="tab-content" id="tab-comparar">
-      <div class="compare-grid" id="compare-grid"></div>
-    </div>
+     <div class="tab-content active" id="tab-resumen">
+       <div class="summary" id="resumen-resumen"></div>
+     </div>
+     <div class="tab-content" id="tab-gastos">
+       <div id="lista-gastos"></div>
+     </div>
+     <div class="tab-content" id="tab-fletes">
+       <div id="lista-fletes"></div>
+     </div>
+     <div class="tab-content" id="tab-bitacora">
+       <div class="summary">
+         <h3 style="margin-bottom:8px">Bitacora del viaje</h3>
+         <div class="form-group">
+           <label>Nota</label>
+           <input type="text" id="bitacora-nota" placeholder="Observacion..." autocomplete="off">
+         </div>
+         <div class="form-group">
+           <label>Monto opcional ($)</label>
+           <input type="number" id="bitacora-monto" placeholder="0" step="1000" min="0">
+         </div>
+         <button class="btn btn-primary" id="btn-agregar-bitacora">Agregar</button>
+         <div id="lista-bitacora" style="margin-top:12px"></div>
+       </div>
+     </div>
+     <div class="tab-content" id="tab-comparar">
+       <div class="compare-grid" id="compare-grid"></div>
+     </div>
 
     <div id="ai-container">
       <h3>Asistente IA</h3>
@@ -234,11 +250,13 @@ var GAS = {
   comparar: function(idA, idB) { return GAS.call("compararLiquidaciones", [idA, idB]); },
   estadoVehiculo: function() { return GAS.call("obtenerEstadoVehiculo", []); },
   preguntarIA: function(preg, lid) { return GAS.call("preguntarIA", [preg, lid]); },
-  enviarWhatsApp: function(lid, url) { return GAS.call("enviarWhatsApp", [lid, url]); },
+    enviarWhatsApp: function(lid, url) { return GAS.call("construirWhatsAppUrl", [lid, url]); },
   enviarEmail: function(dest, asunto, cuerpo, pdfUrl) { return GAS.call("enviarPorEmail", [dest, asunto, cuerpo, pdfUrl]); },
-  obtenerCategorias: function() { return GAS.call("obtenerCategorias", []); },
-  obtenerMontosSugeridos: function() { return GAS.call("obtenerMontosSugeridos", []); }
-};
+    obtenerCategorias: function() { return GAS.call("obtenerCategorias", []); },
+    obtenerMontosSugeridos: function() { return GAS.call("obtenerMontosSugeridos", []); },
+    agregarBitacora: function(lid, nota, monto) { return GAS.call("agregarBitacora", [lid, nota, monto]); },
+    obtenerBitacora: function(lid) { return GAS.call("obtenerBitacora", [lid]); }
+  };
 
 var LIQUIDACION_ID = null;
 var KM_INICIAL = null;
@@ -573,10 +591,11 @@ function init() {
   document.getElementById("btn-cerrar").addEventListener("click", showKmFinalDialog);
   document.getElementById("btn-confirmar-cierre").addEventListener("click", confirmarCierre);
   document.getElementById("btn-cancelar-cierre").addEventListener("click", hideKmFinalDialog);
-  document.getElementById("btn-limpiar").addEventListener("click", function() {
-    document.getElementById("gasto-descripcion").value = "";
-    document.getElementById("gasto-monto").value = "";
-  });
+   document.getElementById("btn-limpiar").addEventListener("click", function() {
+     document.getElementById("gasto-descripcion").value = "";
+     document.getElementById("gasto-monto").value = "";
+   });
+   document.getElementById("btn-agregar-bitacora").addEventListener("click", agregarBitacora);
 
   document.getElementById("categorias-grid").addEventListener("click", function(e) {
     var card = e.target.closest(".card");
@@ -598,6 +617,7 @@ function init() {
       document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
       if (tab.dataset.tab === "gastos") loadGastos();
       if (tab.dataset.tab === "fletes") loadFletes();
+      if (tab.dataset.tab === "bitacora") loadBitacora();
       if (tab.dataset.tab === "comparar") loadComparar();
     });
   });
@@ -618,7 +638,41 @@ function init() {
   });
 }
 
-async function loadComparar() {
+async function loadBitacora() {
+  if (!LIQUIDACION_ID) return;
+  GAS.obtenerBitacora(LIQUIDACION_ID).then(function(entries) {
+    var el = document.getElementById('lista-bitacora');
+    if (entries.length === 0) {
+      el.innerHTML = '<p style="color:#9aa0a6;font-size:.85rem;text-align:center">Sin notas registradas</p>';
+      return;
+    }
+    el.innerHTML = entries.slice().reverse().map(function(e) {
+      var linea = '<div class="expense-item">' +
+        '<div><div class="desc">' + escapeHtml(e.nota) +
+        (e.montoOpcional ? ' <span class="cat">$'+ e.montoOpcional.toLocaleString("es-CO") +'</span>' : '') +
+        '</div><div class="cat">' + escapeHtml(e.fecha) + '</div></div></div>';
+      return linea;
+    }).join('');
+  }).catch(function(){});
+}
+
+async function agregarBitacora() {
+  var nota = document.getElementById('bitacora-nota').value.trim();
+  var monto = parseFloat(document.getElementById('bitacora-monto').value) || 0;
+  if (!nota) return alert('Ingrese una nota');
+  if (!LIQUIDACION_ID) return alert('Abra un viaje primero');
+  try {
+    await GAS.agregarBitacora(LIQUIDACION_ID, nota, monto);
+    document.getElementById('bitacora-nota').value = '';
+    document.getElementById('bitacora-monto').value = '';
+    _cachedResumen = null;
+    loadBitacora();
+  } catch (e) {
+    alert('Error al agregar nota: ' + e.message);
+  }
+}
+
+function loadComparar() {
   GAS.comparar("current", "previous").then(function(res) {
     var grid = document.getElementById("compare-grid");
     grid.innerHTML =
