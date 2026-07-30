@@ -128,6 +128,27 @@ h3{font-size:1rem;margin:8px 0 4px}
     </div>
     <button class="btn btn-primary" id="btn-agregar-gasto">Agregar gasto</button>
 
+    <button class="btn btn-secondary" id="btn-toggle-flete" style="margin-top:8px;width:100%">Agregar flete</button>
+    <div id="flete-form" class="hidden" style="margin-top:8px">
+      <div class="form-group">
+        <label>Concepto</label>
+        <input type="text" id="flete-concepto" placeholder="Ej: Factura, cobro parcial" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Cliente</label>
+        <input type="text" id="flete-cliente" placeholder="Nombre del cliente" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Tipo de carga</label>
+        <input type="text" id="flete-tipo" placeholder="Ej: Seca, refrigerada" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Monto ($)</label>
+        <input type="number" id="flete-monto" placeholder="0" step="1000" min="0">
+      </div>
+      <button class="btn btn-primary" id="btn-agregar-flete">Agregar flete</button>
+    </div>
+
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-danger" id="btn-cerrar">Cerrar viaje</button>
       <button class="btn btn-secondary" id="btn-limpiar">Limpiar</button>
@@ -252,10 +273,16 @@ var GAS = {
   preguntarIA: function(preg, lid) { return GAS.call("preguntarIA", [preg, lid]); },
     enviarWhatsApp: function(lid, url) { return GAS.call("construirWhatsAppUrl", [lid, url]); },
   enviarEmail: function(dest, asunto, cuerpo, pdfUrl) { return GAS.call("enviarPorEmail", [dest, asunto, cuerpo, pdfUrl]); },
-    obtenerCategorias: function() { return GAS.call("obtenerCategorias", []); },
-    obtenerMontosSugeridos: function() { return GAS.call("obtenerMontosSugeridos", []); },
-    agregarBitacora: function(lid, nota, monto) { return GAS.call("agregarBitacora", [lid, nota, monto]); },
-    obtenerBitacora: function(lid) { return GAS.call("obtenerBitacora", [lid]); }
+  obtenerCategorias: function() { return GAS.call("obtenerCategorias", []); },
+  obtenerMontosSugeridos: function() { return GAS.call("obtenerMontosSugeridos", []); },
+  agregarBitacora: function(lid, nota, monto) { return GAS.call("agregarBitacora", [lid, nota, monto]); },
+  obtenerBitacora: function(lid) { return GAS.call("obtenerBitacora", [lid]); },
+  editarGasto: function(id, cat, desc, monto, fecha, adicional) { return GAS.call("editarGasto", [id, cat, desc, monto, fecha, adicional]); },
+  eliminarGasto: function(id) { return GAS.call("eliminarGasto", [id]); },
+  editarFlete: function(id, concepto, cliente, tipoCarga, monto) { return GAS.call("editarFlete", [id, concepto, cliente, tipoCarga, monto]); },
+  eliminarFlete: function(id) { return GAS.call("eliminarFlete", [id]); },
+  listarLiquidaciones: function() { return GAS.call("listarLiquidaciones", []); },
+  convertirBitacoraAGasto: function(bitacoraId) { return GAS.call("convertirBitacoraAGasto", [bitacoraId]); }
   };
 
 var LIQUIDACION_ID = null;
@@ -271,6 +298,20 @@ function showLoading(texto) {
 }
 function hideLoading() {
   document.getElementById("loading-overlay").classList.add("hidden");
+}
+function toast(msg, tipo) {
+  tipo = tipo || "info";
+  var t = document.createElement("div");
+  t.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);"
+    "padding:10px 20px;border-radius:8px;color:#fff;font-size:.85rem;z-index:9999;"
+    "transition:opacity .3s;max-width:90vw;text-align:center;";
+  if (tipo === "error") t.style.background = "#d93025";
+  else if (tipo === "success") t.style.background = "#1e8e3e";
+  else t.style.background = "#5f6368";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.style.opacity = "0"; }, 2500);
+  setTimeout(function() { t.remove(); }, 2800);
 }
 
 function escapeHtml(str) {
@@ -336,7 +377,7 @@ async function crearNuevoViaje() {
   var fecha = document.getElementById("viaje-fecha").value;
   var kmInicial = parseInt(document.getElementById("viaje-km-inicial").value);
   if (!placa || !fecha || isNaN(kmInicial) || kmInicial < 0) {
-    return alert("Complete todos los campos correctamente");
+    return toast("Complete todos los campos correctamente", "error");
   }
   var btn = document.getElementById("btn-crear-viaje");
   btn.disabled = true;
@@ -345,7 +386,7 @@ async function crearNuevoViaje() {
     await GAS.crearLiquidacion(placa, fecha, kmInicial);
     openLiquidacion();
   } catch (e) {
-    alert("Error al crear viaje: " + e.message);
+    toast("Error al crear viaje: " + e.message, "error");
   } finally {
     btn.disabled = false;
     btn.textContent = "Abrir viaje";
@@ -421,12 +462,13 @@ function loadAlertas() {
 }
 
 async function agregarGasto() {
-  var categoria = categoriaSeleccionada || "Otro";
+  if (!categoriaSeleccionada) return toast("Seleccione una categoria", "error");
+  var categoria = categoriaSeleccionada;
   var fecha = document.getElementById("gasto-fecha").value;
   var desc = document.getElementById("gasto-descripcion").value;
   var monto = parseFloat(document.getElementById("gasto-monto").value);
-  if (!fecha || !desc || !monto) return alert("Complete todos los campos");
-  if (!LIQUIDACION_ID) return alert("Abra un viaje primero");
+  if (!fecha || !desc || !monto) return toast("Complete todos los campos", "error");
+  if (!LIQUIDACION_ID) return toast("Abra un viaje primero", "error");
   var btn = document.getElementById("btn-agregar-gasto");
   btn.disabled = true;
   btn.textContent = "Agregando...";
@@ -438,10 +480,39 @@ async function agregarGasto() {
     loadResumen();
     loadGastos();
   } catch (e) {
-    alert("Error al agregar gasto: " + e.message);
+    toast("Error al agregar gasto: " + e.message, "error");
   } finally {
     btn.disabled = false;
     btn.textContent = "Agregar gasto";
+  }
+}
+
+async function agregarFlete() {
+  var concepto = document.getElementById("flete-concepto").value.trim();
+  var cliente = document.getElementById("flete-cliente").value.trim();
+  var tipoCarga = document.getElementById("flete-tipo").value.trim();
+  var monto = parseFloat(document.getElementById("flete-monto").value);
+  if (!concepto || !cliente || !tipoCarga || !monto) return toast("Complete todos los campos del flete", "error");
+  if (!LIQUIDACION_ID) return toast("Abra un viaje primero", "error");
+  var btn = document.getElementById("btn-agregar-flete");
+  btn.disabled = true;
+  btn.textContent = "Agregando...";
+  try {
+    await GAS.agregarFlete(LIQUIDACION_ID, concepto, cliente, tipoCarga, monto);
+    document.getElementById("flete-concepto").value = "";
+    document.getElementById("flete-cliente").value = "";
+    document.getElementById("flete-tipo").value = "";
+    document.getElementById("flete-monto").value = "";
+    document.getElementById("flete-form").classList.add("hidden");
+    _cachedResumen = null;
+    loadResumen();
+    loadFletes();
+    toast("Flete agregado", "success");
+  } catch (e) {
+    toast("Error al agregar flete: " + e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Agregar flete";
   }
 }
 
@@ -464,8 +535,46 @@ function renderGastos(res) {
     var cls = g.esAdicional ? " addition" : "";
     return '<div class="expense-item' + cls + '">' +
       '<div><div class="desc">' + escapeHtml(g.descripcion) + '</div><div class="cat">' + escapeHtml(g.categoria) + ' \u2014 ' + escapeHtml(g.diaSemana) + '</div></div>' +
-      '<div class="amt">$' + g.monto.toLocaleString("es-CO") + '</div></div>';
+      '<div style="display:flex;align-items:center;gap:4px">' +
+      '<span class="amt">$' + g.monto.toLocaleString("es-CO") + '</span>' +
+      '<button class="btn btn-secondary" style="padding:4px 8px;font-size:.75rem" onclick="editarGastoPrompt(\'' + g.id + '\')">\u270F\uFE0F</button>' +
+      '<button class="btn btn-danger" style="padding:4px 8px;font-size:.75rem" onclick="eliminarGastoConfirm(\'' + g.id + '\')">\uD83D\uDDD1\uFE0F</button>' +
+      '</div></div>';
   }).join("");
+}
+
+function editarGastoPrompt(id) {
+  var g = null;
+  if (_cachedResumen && _cachedResumen.gastos) {
+    g = _cachedResumen.gastos.find(function(x) { return x.id === id; });
+  }
+  if (!g) return toast("No se encontr\u00f3 el gasto", "error");
+  var nuevoMonto = prompt("Nuevo monto ($):", String(g.monto));
+  if (nuevoMonto === null) return;
+  var nuevaDesc = prompt("Nueva descripci\u00f3n:", g.descripcion);
+  if (nuevaDesc === null) return;
+  var nuevaCat = prompt("Categor\u00eda:", g.categoria);
+  if (nuevaCat === null) return;
+  GAS.editarGasto(id, nuevaCat, nuevaDesc, parseFloat(nuevoMonto) || g.monto, g.fecha, g.esAdicional).then(function() {
+    _cachedResumen = null;
+    loadGastos();
+    loadResumen();
+    toast("Gasto actualizado", "success");
+  }).catch(function(e) {
+    toast("Error: " + e.message, "error");
+  });
+}
+
+function eliminarGastoConfirm(id) {
+  if (!confirm("Eliminar este gasto?")) return;
+  GAS.eliminarGasto(id).then(function() {
+    _cachedResumen = null;
+    loadGastos();
+    loadResumen();
+    toast("Gasto eliminado", "success");
+  }).catch(function(e) {
+    toast("Error: " + e.message, "error");
+  });
 }
 
 function loadFletes() {
@@ -486,8 +595,48 @@ function renderFletes(res) {
   el.innerHTML = res.fletes.map(function(f) {
     return '<div class="expense-item">' +
       '<div><div class="desc">' + escapeHtml(f.concepto) + ' \u2014 ' + escapeHtml(f.cliente) + '</div><div class="cat">' + escapeHtml(f.tipoCarga) + '</div></div>' +
-      '<div class="amt">$' + f.monto.toLocaleString("es-CO") + '</div></div>';
+      '<div style="display:flex;align-items:center;gap:4px">' +
+      '<span class="amt">$' + f.monto.toLocaleString("es-CO") + '</span>' +
+      '<button class="btn btn-secondary" style="padding:4px 8px;font-size:.75rem" onclick="editarFletePrompt(\'' + f.id + '\')">\u270F\uFE0F</button>' +
+      '<button class="btn btn-danger" style="padding:4px 8px;font-size:.75rem" onclick="eliminarFleteConfirm(\'' + f.id + '\')">\uD83D\uDDD1\uFE0F</button>' +
+      '</div></div>';
   }).join("");
+}
+
+function editarFletePrompt(id) {
+  var f = null;
+  if (_cachedResumen && _cachedResumen.fletes) {
+    f = _cachedResumen.fletes.find(function(x) { return x.id === id; });
+  }
+  if (!f) return toast("No se encontr\u00f3 el flete", "error");
+  var nuevoMonto = prompt("Nuevo monto ($):", String(f.monto));
+  if (nuevoMonto === null) return;
+  var nuevoConcepto = prompt("Concepto:", f.concepto);
+  if (nuevoConcepto === null) return;
+  var nuevoCliente = prompt("Cliente:", f.cliente);
+  if (nuevoCliente === null) return;
+  var nuevoTipo = prompt("Tipo de carga:", f.tipoCarga);
+  if (nuevoTipo === null) return;
+  GAS.editarFlete(id, nuevoConcepto, nuevoCliente, nuevoTipo, parseFloat(nuevoMonto) || f.monto).then(function() {
+    _cachedResumen = null;
+    loadFletes();
+    loadResumen();
+    toast("Flete actualizado", "success");
+  }).catch(function(e) {
+    toast("Error: " + e.message, "error");
+  });
+}
+
+function eliminarFleteConfirm(id) {
+  if (!confirm("Eliminar este flete?")) return;
+  GAS.eliminarFlete(id).then(function() {
+    _cachedResumen = null;
+    loadFletes();
+    loadResumen();
+    toast("Flete eliminado", "success");
+  }).catch(function(e) {
+    toast("Error: " + e.message, "error");
+  });
 }
 
 function setupCerramientoHandlers() {
@@ -496,13 +645,13 @@ function setupCerramientoHandlers() {
   });
   document.getElementById("btn-enviar-email").addEventListener("click", function() {
     var dest = document.getElementById("email-dest").value.trim();
-    if (!dest) return alert("Ingrese el email");
+    if (!dest) return toast("Ingrese el email", "error");
     showLoading("Enviando email...");
     GAS.enviarEmail(dest, "Liquidacion " + LIQUIDACION_ID, "Adjunto liquidacion " + LIQUIDACION_ID, cerraduraData.pdfUrl).then(function(msg) {
-      alert(msg);
+      toast(msg, "success");
       hideLoading();
     }).catch(function(e) {
-      alert("Error: " + e.message);
+      toast("Error: " + e.message, "error");
       hideLoading();
     });
   });
@@ -564,7 +713,7 @@ async function confirmarCierre() {
       document.getElementById("btn-wa").style.display = "none";
     }
   } catch (e) {
-    alert("Error al cerrar: " + e.message);
+    toast("Error al cerrar: " + e.message, "error");
   } finally {
     hideLoading();
     btnConfirm.disabled = false;
@@ -588,14 +737,22 @@ function init() {
 
   document.getElementById("btn-crear-viaje").addEventListener("click", crearNuevoViaje);
   document.getElementById("btn-agregar-gasto").addEventListener("click", agregarGasto);
+  document.getElementById("btn-agregar-flete").addEventListener("click", agregarFlete);
+  document.getElementById("btn-toggle-flete").addEventListener("click", function() {
+    document.getElementById("flete-form").classList.toggle("hidden");
+  });
   document.getElementById("btn-cerrar").addEventListener("click", showKmFinalDialog);
   document.getElementById("btn-confirmar-cierre").addEventListener("click", confirmarCierre);
   document.getElementById("btn-cancelar-cierre").addEventListener("click", hideKmFinalDialog);
-   document.getElementById("btn-limpiar").addEventListener("click", function() {
-     document.getElementById("gasto-descripcion").value = "";
-     document.getElementById("gasto-monto").value = "";
-   });
-   document.getElementById("btn-agregar-bitacora").addEventListener("click", agregarBitacora);
+  document.getElementById("btn-limpiar").addEventListener("click", function() {
+    document.getElementById("gasto-descripcion").value = "";
+    document.getElementById("gasto-monto").value = "";
+    document.getElementById("flete-concepto").value = "";
+    document.getElementById("flete-cliente").value = "";
+    document.getElementById("flete-tipo").value = "";
+    document.getElementById("flete-monto").value = "";
+  });
+  document.getElementById("btn-agregar-bitacora").addEventListener("click", agregarBitacora);
 
   document.getElementById("categorias-grid").addEventListener("click", function(e) {
     var card = e.target.closest(".card");
@@ -647,10 +804,16 @@ async function loadBitacora() {
       return;
     }
     el.innerHTML = entries.slice().reverse().map(function(e) {
+      var botonConvertir = '';
+      if (!e.convertidoAGasto) {
+        botonConvertir = ' <button style="font-size:.7rem;background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer" onclick="convertirBitacora(\'' + e.id + '\')">Convertir en gasto</button>';
+      } else {
+        botonConvertir = ' <span style="font-size:.7rem;color:#1e8e3e">\u2705 Convertido</span>';
+      }
       var linea = '<div class="expense-item">' +
         '<div><div class="desc">' + escapeHtml(e.nota) +
         (e.montoOpcional ? ' <span class="cat">$'+ e.montoOpcional.toLocaleString("es-CO") +'</span>' : '') +
-        '</div><div class="cat">' + escapeHtml(e.fecha) + '</div></div></div>';
+        '</div><div class="cat">' + escapeHtml(e.fecha) + botonConvertir + '</div></div></div>';
       return linea;
     }).join('');
   }).catch(function(){});
@@ -659,8 +822,8 @@ async function loadBitacora() {
 async function agregarBitacora() {
   var nota = document.getElementById('bitacora-nota').value.trim();
   var monto = parseFloat(document.getElementById('bitacora-monto').value) || 0;
-  if (!nota) return alert('Ingrese una nota');
-  if (!LIQUIDACION_ID) return alert('Abra un viaje primero');
+  if (!nota) return toast('Ingrese una nota', 'error');
+  if (!LIQUIDACION_ID) return toast('Abra un viaje primero', 'error');
   try {
     await GAS.agregarBitacora(LIQUIDACION_ID, nota, monto);
     document.getElementById('bitacora-nota').value = '';
@@ -668,18 +831,60 @@ async function agregarBitacora() {
     _cachedResumen = null;
     loadBitacora();
   } catch (e) {
-    alert('Error al agregar nota: ' + e.message);
+    toast('Error al agregar nota: ' + e.message, 'error');
   }
 }
 
+function convertirBitacora(id) {
+  if (!confirm('Convertir esta nota en gasto?')) return;
+  GAS.convertirBitacoraAGasto(id).then(function() {
+    _cachedResumen = null;
+    loadBitacora();
+    loadGastos();
+    loadResumen();
+    toast('Nota convertida en gasto', 'success');
+  }).catch(function(e) {
+    toast('Error: ' + e.message, 'error');
+  });
+}
+
 function loadComparar() {
-  GAS.comparar("current", "previous").then(function(res) {
-    var grid = document.getElementById("compare-grid");
+  var grid = document.getElementById("compare-grid");
+  grid.innerHTML = '<p style="color:#5f6368;text-align:center;font-size:.9rem">Cargando viajes...</p>';
+  GAS.listarLiquidaciones().then(function(viajes) {
+    if (viajes.length < 2) {
+      grid.innerHTML = '<p style="color:#5f6368;text-align:center;font-size:.9rem">Necesita al menos 2 viajes cerrados para comparar</p>';
+      return;
+    }
+    var opts = viajes.map(function(v) {
+      return '<option value="' + v.id + '">' + escapeHtml(v.placa) + ' - ' + v.fechaInicio + ' ($' + (v.balance || 0).toLocaleString("es-CO") + '</option>';
+    }).join("");
     grid.innerHTML =
-      '<div class="compare-card"><div class="label">Viaje ' + escapeHtml(String(res.idA)) + '</div><div class="val">$' + res.balanceA.toLocaleString("es-CO") + '</div><div class="label">Balance</div></div>' +
-      '<div class="compare-card"><div class="label">Viaje ' + escapeHtml(String(res.idB)) + '</div><div class="val">$' + res.balanceB.toLocaleString("es-CO") + '</div><div class="label">Balance</div></div>';
+      '<div class="form-group"><label>Viaje A</label><select id="cmp-a" class="form-control">' + opts + '</select></div>' +
+      '<div class="form-group"><label>Viaje B</label><select id="cmp-b" class="form-control">' + opts + '</select></div>' +
+      '<button class="btn btn-primary" id="btn-comparar">Comparar</button>' +
+      '<div id="cmp-result" style="margin-top:12px"></div>';
+    document.getElementById("btn-comparar").addEventListener("click", function() {
+      var idA = document.getElementById("cmp-a").value;
+      var idB = document.getElementById("cmp-b").value;
+      if (idA === idB) return toast("Seleccione dos viajes distintos", "error");
+      GAS.comparar(idA, idB).then(function(res) {
+        var d = document.getElementById("cmp-result");
+        var balClsA = res.balanceA >= 0 ? "" : "negative";
+        var balClsB = res.balanceB >= 0 ? "" : "negative";
+        var signA = res.balanceA >= 0 ? "+" : "";
+        var signB = res.balanceB >= 0 ? "+" : "";
+        d.innerHTML =
+          '<div class="compare-grid">' +
+          '<div class="compare-card ' + balClsA + '"><div class="label">Viaje ' + escapeHtml(String(res.idA)) + '</div><div class="val">$' + signA + res.balanceA.toLocaleString("es-CO") + '</div><div class="label">Balance</div></div>' +
+          '<div class="compare-card ' + balClsB + '"><div class="label">Viaje ' + escapeHtml(String(res.idB)) + '</div><div class="val">$' + signB + res.balanceB.toLocaleString("es-CO") + '</div><div class="label">Balance</div></div>' +
+          '</div>';
+      }).catch(function() {
+        d.innerHTML = '<p style="color:#d93025">Error al comparar</p>';
+      });
+    });
   }).catch(function() {
-    document.getElementById("compare-grid").innerHTML = '<p style="color:#5f6368;text-align:center;font-size:.9rem">No hay viajes para comparar</p>';
+    grid.innerHTML = '<p style="color:#5f6368;text-align:center;font-size:.9rem">No hay viajes para comparar</p>';
   });
 }
 
