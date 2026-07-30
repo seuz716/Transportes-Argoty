@@ -223,6 +223,26 @@ function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdi
   return gasto;
 }
 
+function editarGasto(id, categoria, descripcion, monto, fecha, esAdicional, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Gastos");
+  var datos = {
+    categoria: categoria,
+    descripcion: descripcion,
+    monto: monto,
+    fecha: fecha,
+    diaSemana: new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" }),
+    esAdicional: esAdicional,
+  };
+  return editarFila(hoja, "id", id, datos);
+}
+
+function eliminarGasto(id, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Gastos");
+  return eliminarFila(hoja, "id", id);
+}
+
 function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto, token) {
   verificarSesion(token);
   var hoja = obtenerHoja("Fletes");
@@ -237,6 +257,36 @@ function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto, token)
   };
   agregarFila(hoja, flete);
   return flete;
+}
+
+function editarFlete(id, concepto, cliente, tipoCarga, monto, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Fletes");
+  var datos = {
+    concepto: concepto,
+    cliente: cliente,
+    tipoCarga: tipoCarga,
+    monto: monto,
+  };
+  return editarFila(hoja, "id", id, datos);
+}
+
+function eliminarFlete(id, token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Fletes");
+  return eliminarFila(hoja, "id", id);
+}
+
+function listarLiquidaciones(token) {
+  verificarSesion(token);
+  var hoja = obtenerHoja("Liquidaciones");
+  var filas = leerFilas(hoja, 2);
+  return filas
+    .filter(function(f) { return f.estado === "cerrada"; })
+    .sort(function(a, b) { return Number(b.id) - Number(a.id); })
+    .map(function(f) {
+      return { id: f.id, placa: f.placa, fechaInicio: f.fechaInicio, fechaFin: f.fechaFin, balance: f.balance };
+    });
 }
 
 // ==================== Categorias ====================
@@ -414,4 +464,35 @@ function obtenerBitacora(liquidacionId, token) {
   var hoja = obtenerHoja("Bitacora");
   var filas = leerFilas(hoja, 2);
   return filas.filter(function(f) { return String(f.liquidacionId) === String(liquidacionId); });
+}
+
+function convertirBitacoraAGasto(bitacoraId, token) {
+  verificarSesion(token);
+  var hojaBitacora = obtenerHoja("Bitacora");
+  var filas = leerFilas(hojaBitacora, 2);
+  var idx = -1;
+  for (var i = 0; i < filas.length; i++) {
+    if (String(filas[i].id) === String(bitacoraId)) { idx = i; break; }
+  }
+  if (idx === -1) throw new Error("Entrada de bitacora no encontrada");
+  if (filas[idx].convertidoAGasto) throw new Error("Esta entrada ya fue convertida");
+
+  var hojaGastos = obtenerHoja("Gastos");
+  var id = obtenerProximoId(hojaGastos);
+  var gasto = {
+    id: String(id),
+    liquidacionId: filas[idx].liquidacionId,
+    fecha: filas[idx].fecha,
+    diaSemana: new Date(filas[idx].fecha).toLocaleDateString("es-CO", { weekday: "long" }),
+    categoria: "Otro",
+    descripcion: filas[idx].nota,
+    monto: filas[idx].montoOpcional || 0,
+    esAdicional: !0,
+  };
+  agregarFila(hojaGastos, gasto);
+
+  filas[idx].convertidoAGasto = true;
+  hojaBitacora.getRange(idx + 2, 1, 1, Object.values(filas[idx]).length).setValues([Object.values(filas[idx])]);
+
+  return gasto;
 }

@@ -89,13 +89,37 @@ function obtenerProximoId(hoja) {
   return Math.max(...ids) + 1;
 }
 
-module.exports = {
-  obtenerScriptSpreadsheet,
-  obtenerHoja,
-  agregarEncabezados,
-  leerFilas,
-  escribirFilas,
-  agregarFila,
-  obtenerFilasFiltradas,
-  obtenerProximoId,
-};
+function editarFila(hoja, idColumn, id, datos) {
+  const filas = leerFilas(hoja, 2);
+  const idx = filas.findIndex((f) => String(f[idColumn]) === String(id));
+  if (idx === -1) throw new Error("Fila con id " + id + " no encontrada");
+  const sheetRow = idx + 2;
+  const columnas = Object.keys(datos);
+  const values = [Object.values(datos)];
+  hoja.getRange(sheetRow, 1, 1, columnas.length).setValues(values);
+  return datos;
+}
+
+function eliminarFila(hoja, idColumn, id) {
+  const filas = leerFilas(hoja, 2);
+  const idx = filas.findIndex((f) => String(f[idColumn]) === String(id));
+  if (idx === -1) throw new Error("Fila con id " + id + " no encontrada");
+  const sheetRow = idx + 2;
+  hoja.deleteRow(sheetRow);
+  return true;
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    obtenerScriptSpreadsheet,
+    obtenerHoja,
+    agregarEncabezados,
+    leerFilas,
+    escribirFilas,
+    agregarFila,
+    obtenerFilasFiltradas,
+    obtenerProximoId,
+    editarFila,
+    eliminarFila,
+  };
+}
