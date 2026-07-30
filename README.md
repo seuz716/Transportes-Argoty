@@ -1,8 +1,8 @@
-# Transportes Argoty — App de liquidación de fletes
+# FLOTA YC — App de liquidacion de fletes
 
-## Qué es
+## Que es
 
-App de Google Apps Script que permite a Sr. Argoty liquidar fletes desde el celular: registrar gastos por día, fletes (ingresos), generar PDFs y consultar un asistente de IA (Gemini Flash).
+App de Google Apps Script que permite a FLOTA YC liquidar fletes desde el celular: registrar gastos por dia, fletes (ingresos), generar PDFs y consultar un asistente de IA (Gemini Flash).
 
 ## Stack
 

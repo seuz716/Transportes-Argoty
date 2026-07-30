@@ -1,5 +1,5 @@
 /**
- * Script de configuración inicial para Transportes Argoty
+ * Script de configuracion inicial para FLOTA YC
  * Ejecutar en consola de Apps Script o como función de desarrollo
  */
 

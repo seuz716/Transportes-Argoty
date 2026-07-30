@@ -1,7 +1,7 @@
 {
-  "name": "transportes-argoty",
+  "name": "flota-yc",
   "version": "0.1.0",
-  "description": "App de liquidación de fletes para Sr. Argoty — Google Apps Script",
+  "description": "App de liquidaci\u00f3n de fletes para FLOTA YC — Google Apps Script",
   "type": "commonjs",
   "private": true,
   "license": "MIT",
@@ -18,5 +18,8 @@
   },
   "devDependencies": {
     "jest": "^29.7.0"
+  },
+  "overrides": {
+    "brace-expansion": "^2.0.0"
   }
 }

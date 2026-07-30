@@ -147,6 +147,20 @@ describe("compararLiquidaciones", () => {
     const resultado = compararLiquidaciones(a, b);
     expect(resultado.mejorBalance).toBe("B");
   });
+
+  test("indica liquidacionA cuando balanceA > balanceB", () => {
+    const a = { id: "A", totalGastos: 500000, totalFletes: 800000, balance: 300000 };
+    const b = { id: "B", totalGastos: 600000, totalFletes: 800000, balance: 200000 };
+    const resultado = compararLiquidaciones(a, b);
+    expect(resultado.mejorBalance).toBe("A");
+  });
+
+  test("retorna empate cuando balanceA === balanceB", () => {
+    const a = { id: "A", totalGastos: 500000, totalFletes: 700000, balance: 200000 };
+    const b = { id: "B", totalGastos: 500000, totalFletes: 700000, balance: 200000 };
+    const resultado = compararLiquidaciones(a, b);
+    expect(resultado.mejorBalance).toBe("empate");
+  });
 });
 
 describe("sugerirMontoPorCategoria", () => {
@@ -210,6 +224,32 @@ describe("formatearContextoParaIA", () => {
     const resultado = formatearContextoParaIA(liquidacion, historicoUltimos3Viajes, vehiculo);
     expect(resultado).toContain("ABC-123");
     expect(resultado).toContain("45600");
+  });
+
+  test("no incluye historico cuando esta vacio", () => {
+    const liquidacion = {
+      id: "SAV792",
+      totalGastos: 931000,
+      totalFletes: 1000000,
+      balance: 69000,
+      categoriaMasGasto: "ACPM",
+    };
+    const vehiculo = { placa: "ABC-123", kmActual: 45600 };
+    const resultado = formatearContextoParaIA(liquidacion, [], vehiculo);
+    expect(resultado).not.toContain("Últimos viajes");
+  });
+
+  test("no incluye historico cuando es null", () => {
+    const liquidacion = {
+      id: "SAV792",
+      totalGastos: 931000,
+      totalFletes: 1000000,
+      balance: 69000,
+      categoriaMasGasto: "ACPM",
+    };
+    const vehiculo = { placa: "ABC-123", kmActual: 45600 };
+    const resultado = formatearContextoParaIA(liquidacion, null, vehiculo);
+    expect(resultado).not.toContain("Últimos viajes");
   });
 });
 
