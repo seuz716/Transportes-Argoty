@@ -61,6 +61,11 @@ function verificarPIN(pin) {
 
 function _obtenerResumenLiquidacion(liquidacionId) {
   var resolvedId = resolverLiquidacionId(liquidacionId);
+  var cacheKey = "resumen_" + resolvedId;
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
   var liq = buscarLiquidacion(resolvedId);
   var gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", resolvedId);
   var fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", resolvedId);
@@ -72,7 +77,7 @@ function _obtenerResumenLiquidacion(liquidacionId) {
   for (var i = 0; i < gastos.length; i++) { diasSet[gastos[i].diaSemana] = true; }
   var dias = Object.keys(diasSet);
   for (var d = 0; d < dias.length; d++) { totalPorDia[dias[d]] = calcularTotalPorDia(gastos, dias[d]); }
-  return {
+  var resultado = {
     id: resolvedId,
     placa: liq ? liq.placa : "",
     kmInicial: liq ? liq.kmInicial : 0,
@@ -83,6 +88,8 @@ function _obtenerResumenLiquidacion(liquidacionId) {
     gastos: gastos,
     fletes: fletes
   };
+  cache.put(cacheKey, JSON.stringify(resultado), 30);
+  return resultado;
 }
 
 // ==================== Liquidaciones (public) ====================
