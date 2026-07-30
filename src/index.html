@@ -68,6 +68,12 @@ h3{font-size:1rem;margin:8px 0 4px}
 .footer{margin-top:16px;padding:12px;text-align:center;font-size:.75rem;color:#9aa0a6}
 .hidden{display:none!important}
 
+/* Sticky balance */
+#sticky-balance{position:sticky;top:0;z-index:100;margin-bottom:8px}
+#balance-sticky .summary{cursor:pointer}
+#balance-sticky .summary .clickable{opacity:.7}
+#balance-sticky .summary:hover{box-shadow:0 2px 6px rgba(0,0,0,.15)}
+
 /* Loading overlay */
 #loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:999}
 #loading-overlay.hidden{display:none}
@@ -89,6 +95,15 @@ h3{font-size:1rem;margin:8px 0 4px}
 
 <div id="main-screen">
   <div id="alertas-banner"></div>
+
+  <div id="balance-sticky" class="hidden">
+    <div class="summary" style="margin-bottom:0">
+      <div class="row"><span>Viaje</span><span id="sticky-id"></span></div>
+      <div class="row"><span>Balance</span><span id="sticky-balance"></span></div>
+      <div class="row"><span>Gastos</span><span id="sticky-gastos"></span></div>
+      <div class="row"><span>Fletes</span><span id="sticky-fletes"></span></div>
+    </div>
+  </div>
 
   <div id="nuevo-viaje" class="hidden">
     <h2>Abrir nuevo viaje</h2>
@@ -447,6 +462,14 @@ function renderResumen(res) {
     '<div class="row"><span>Gastos</span><span>$' + res.totalGastos.toLocaleString("es-CO") + '</span></div>' +
     '<div class="row"><span>Fletes</span><span>$' + res.totalFletes.toLocaleString("es-CO") + '</span></div>' +
     '<div class="row total ' + balCls + '"><span>Balance</span><span>' + balSign + '$' + res.balance.toLocaleString("es-CO") + '</span></div>';
+
+  var sb = document.getElementById("balance-sticky");
+  sb.classList.remove("hidden");
+  document.getElementById("sticky-id").textContent = res.id;
+  var sbal = res.balance >= 0 ? "+" : "";
+  document.getElementById("sticky-balance").innerHTML = '<span style="color:' + (res.balance >= 0 ? '#1e8e3e' : '#d93025') + ';font-weight:700">' + sbal + '$' + res.balance.toLocaleString("es-CO") + '</span>';
+  document.getElementById("sticky-gastos").textContent = '$' + res.totalGastos.toLocaleString("es-CO");
+  document.getElementById("sticky-fletes").textContent = '$' + res.totalFletes.toLocaleString("es-CO");
 }
 
 function loadAlertas() {
