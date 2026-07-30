@@ -60,6 +60,7 @@ function compararLiquidaciones(liquidacionA, liquidacionB) {
   let mejorBalance = null;
   if (balanceA > balanceB) mejorBalance = liquidacionA.id;
   else if (balanceB > balanceA) mejorBalance = liquidacionB.id;
+  else mejorBalance = "empate";
 
   return {
     balanceDiferencia: Math.abs(balanceA - balanceB),
@@ -84,11 +85,13 @@ function formatearContextoParaIA(liquidacionActual, historico, vehiculo) {
 
   if (historico && historico.length > 0) {
     lineas.push("Últimos viajes:");
-    historico.forEach((v) => {
-      lineas.push(
-        `  Viaje ${v.id}: balance $${v.balance}, gasto más alto en ${v.categoriaMasGasto} ($${v.montoMasGasto}).`
-      );
-    });
+  historico.forEach((v) => {
+    var detalle = `  Viaje ${v.id}: balance $${v.balance}, total gasto $${v.totalGastos}, total fletes $${v.totalFletes}`;
+    if (v.categoriaMasGasto) {
+      detalle += `, gasto más alto en ${v.categoriaMasGasto} ($${v.montoMasGasto})`;
+    }
+    lineas.push(detalle + ".");
+  });
   }
 
   return lineas.join("\n");

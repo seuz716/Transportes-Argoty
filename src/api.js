@@ -125,6 +125,11 @@ function cerrarLiquidacion(liquidacionId, kmFinal, token) {
   }
   if (idx === -1) throw new Error("Liquidacion " + resolvedId + " no encontrada");
 
+  var kmInicial = liqFilas[idx].kmInicial;
+  if (Number(kmFinal) <= Number(kmInicial)) {
+    throw new Error("kmFinal (" + kmFinal + ") debe ser mayor que kmInicial (" + kmInicial + ")");
+  }
+
   var gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", resolvedId);
   var fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", resolvedId);
 
@@ -298,102 +303,30 @@ function enviarPorEmail(destinatario, asunto, cuerpo, pdfUrl, token) {
   }
 }
 
-// ==================== PDF ====================
-
-function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
-  var doc = DocumentApp.create("Liquidacion " + liquidacionId);
-  var body = doc.getBody();
-
-  body.appendParagraph("LIQUIDACION DE FLETES")
-      .setHeading(DocumentApp.ParagraphHeading.HEADING1)
-      .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-
-  body.appendParagraph("Viaje " + liquidacionId)
-      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
-
-  body.appendParagraph(
-      "Fecha inicio: " + datos.fechaInicio +
-      " | Fecha fin: " + (datos.fechaFin || new Date().toISOString().split("T")[0])
-  ).setFontSize(10);
-
-  body.appendParagraph(
-      "Vehiculo: " + datos.placa +
-      " | Km " + datos.kmInicial + " a " + datos.kmFinal +
-      " (" + (datos.kmFinal - datos.kmInicial) + " km)"
-  ).setFontSize(10);
-
-  if (datos.consumoKm) {
-    body.appendParagraph("Consumo ACPM: $" + datos.consumoKm.toFixed(2) + "/km").setFontSize(10);
-  }
-
-  body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Gastos por dia");
-
-  var dias = {};
-  gastos.forEach(function(g) {
-    if (!dias[g.diaSemana]) dias[g.diaSemana] = [];
-    dias[g.diaSemana].push(g);
-  });
-
-  var diasOrden = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
-  diasOrden.forEach(function(dia) {
-    var items = dias[dia];
-    if (!items || items.length === 0) return;
-    body.appendParagraph(dia).setBold(true).setFontSize(11);
-    items.forEach(function(item) {
-      body.appendParagraph(
-          "  " + item.descripcion + " - $" + item.monto.toLocaleString("es-CO") +
-          " [" + item.categoria + "]"
-      ).setFontSize(10);
-    });
-    var subtotal = items.reduce(function(s, i) { return s + i.monto; }, 0);
-    body.appendParagraph("  Subtotal: $" + subtotal.toLocaleString("es-CO"))
-        .setFontSize(10).setBold(true);
-  });
-
-  var adicionales = gastos.filter(function(g) { return g.esAdicional; });
-  if (adicionales.length > 0) {
-    body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Gastos adicionales");
-    adicionales.forEach(function(item) {
-      body.appendParagraph(
-          "  " + item.descripcion + " - $" + item.monto.toLocaleString("es-CO") +
-          " [" + item.categoria + "]"
-      ).setFontSize(10);
-    });
-  }
-
-  body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Resumen financiero");
-
-  var totalFletes = fletes.reduce(function(s, f) { return s + f.monto; }, 0);
-  var totalGastos = gastos.reduce(function(s, g) { return s + g.monto; }, 0);
-  var bal = totalFletes - totalGastos;
-
-  body.appendTable([
-    ["Concepto", "Monto"],
-    ["Total fletes (ingresos)", "$" + totalFletes.toLocaleString("es-CO")],
-    ["Total gastos", "$" + totalGastos.toLocaleString("es-CO")],
-    ["BALANCE", bal >= 0 ? "$" + bal.toLocaleString("es-CO") : "-$" + Math.abs(bal).toLocaleString("es-CO")],
-  ]).setFontSize(10);
-
-  var pdfBlob = DriveApp.getFileById(doc.getId()).getAs(MimeType.PDF);
-  var pdfName = "Liquidacion_" + liquidacionId + ".pdf";
-  var folderId = PropertiesService.getScriptProperties().getProperty("PDF_FOLDER");
-  var pdfFile;
-  if (folderId) {
-    try {
-      var folder = DriveApp.getFolderById(folderId);
-      pdfFile = folder.createFile(pdfBlob).setName(pdfName);
-    } catch (e) {
-      pdfFile = DriveApp.createFile(pdfBlob).setName(pdfName);
-    }
-  } else {
-    pdfFile = DriveApp.createFile(pdfBlob).setName(pdfName);
-  }
-
-  doc.setTrashed(true);
-  return pdfFile.getUrl();
-}
-
 // ==================== IA ====================
+
+function obtenerHistoricoLiquidaciones(limit, excludeId) {
+  var hoja = obtenerHoja("Liquidaciones");
+  var filas = leerFilas(hoja, 2);
+  var cerradas = filas
+    .filter(function(f) { return f.estado === "cerrada"; })
+    .sort(function(a, b) { return Number(b.id) - Number(a.id); });
+
+  var historico = [];
+  var count = 0;
+  for (var i = 0; i < cerradas.length && count < limit; i++) {
+    if (String(cerradas[i].id) === String(excludeId)) continue;
+    historico.push({
+      id: cerradas[i].id,
+      balance: cerradas[i].balance || 0,
+      totalGastos: cerradas[i].totalGastos || 0,
+      totalFletes: cerradas[i].totalFletes || 0,
+      consumoKm: cerradas[i].consumoKm || 0,
+    });
+    count++;
+  }
+  return historico;
+}
 
 function preguntarIA(pregunta, liquidacionId, token) {
   verificarSesion(token);
@@ -402,10 +335,23 @@ function preguntarIA(pregunta, liquidacionId, token) {
   if (!pregunta || pregunta.trim().length === 0) throw new Error("La pregunta no puede estar vacia");
 
   var liquidacion = _obtenerResumenLiquidacion(liquidacionId);
+  if (!liquidacion || !liquidacion.id) {
+    throw new Error("No se encontro la liquidacion " + liquidacionId);
+  }
+
+  var maxGasto = { categoria: "", monto: 0 };
+  (liquidacion.gastos || []).forEach(function(g) {
+    if (g.monto > maxGasto.monto) {
+      maxGasto = { categoria: g.categoria, monto: g.monto };
+    }
+  });
+  liquidacion.categoriaMasGasto = maxGasto.categoria;
+  liquidacion.montoMasGasto = maxGasto.monto;
 
   var vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", liquidacion.placa || "")[0] || {};
   var vehiculoInfo = { placa: vehiculo.placa || "N/A", kmActual: vehiculo.kmActual || 0 };
-  var contexto = formatearContextoParaIA(liquidacion, [], vehiculoInfo);
+  var historico = obtenerHistoricoLiquidaciones(3, liquidacionId);
+  var contexto = formatearContextoParaIA(liquidacion, historico, vehiculoInfo);
   var promptStr = "Contexto de la liquidacion:\n" + contexto + "\n\nPregunta: " + pregunta;
 
   var options = {
@@ -429,7 +375,11 @@ function preguntarIA(pregunta, liquidacionId, token) {
   var body = JSON.parse(res.getContentText());
   var candidates = body.candidates;
   if (!candidates || candidates.length === 0) throw new Error("Gemini no devolvio respuesta");
-  var text = candidates[0].content.parts[0].text;
+  var content = candidates[0].content;
+  if (!content || !content.parts || content.parts.length === 0) {
+    throw new Error("Gemini devolvio respuesta vacia");
+  }
+  var text = content.parts[0].text;
   text = text.replace(/[\r\n]+/g, "\n").trim();
   return text;
 }

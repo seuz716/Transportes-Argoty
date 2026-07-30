@@ -4,10 +4,13 @@
  */
 
 function setupInicial() {
-  // Configuración por defecto - MODIFICAR con valores reales
-  const SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI"; // Reemplazar con ID real
-  const PIN_INICIAL = "123456"; // PIN de desarrollo
-  
+  const SPREADSHEET_ID = "";
+  const PIN_INICIAL = "";
+
+  if (!SPREADSHEET_ID || !PIN_INICIAL) {
+    throw new Error("Debe configurar SPREADSHEET_ID y PIN_INICIAL antes de ejecutar setupInicial.");
+  }
+
   // Guardar en PropertiesService (persistente)
   const props = PropertiesService.getScriptProperties();
   
@@ -47,11 +50,11 @@ function setupInicial() {
       agregarFila(hojaVehiculo, vehiculoPlaceholder);
     }
     
-    Logger.log("✅ Configuración inicial completada");
-    Logger.log("📝 Próximos pasos:");
-    Logger.log("   1. Reemplazar SPREADSHEET_ID en este script con el real");
-    Logger.log("   2. Actualizar datos del vehiculo en hoja 'Vehiculo'");
-    Logger.log("   3. Hacer deploy de la app web");
+    Logger.log("Configuración inicial completada");
+    Logger.log("Próximos pasos:");
+    Logger.log("   1. Reemplace SPREADSHEET_ID y PIN_INICIAL en setup.js con valores reales");
+    Logger.log("   2. Vuelva a ejecutar setupInicial()");
+    Logger.log("   3. Haga deploy de la app web");
     
   } catch (e) {
     Logger.log("❌ Error en setup: " + e.message);
