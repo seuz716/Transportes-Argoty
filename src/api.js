@@ -72,11 +72,21 @@ function _obtenerResumenLiquidacion(liquidacionId) {
   var totalGastos = calcularTotalGastos(gastos);
   var totalFletes = calcularTotalFletes(fletes);
   var balance = calcularBalance(fletes, gastos);
+  
+  // Calcular totales por día, excluyendo gastos adicionales (que no tienen día)
   var totalPorDia = {};
   var diasSet = {};
-  for (var i = 0; i < gastos.length; i++) { diasSet[gastos[i].diaSemana] = true; }
+  for (var i = 0; i < gastos.length; i++) {
+    var dia = gastos[i].diaSemana;
+    if (dia) {
+      diasSet[dia] = true;
+    }
+  }
   var dias = Object.keys(diasSet);
-  for (var d = 0; d < dias.length; d++) { totalPorDia[dias[d]] = calcularTotalPorDia(gastos, dias[d]); }
+  for (var d = 0; d < dias.length; d++) { 
+    totalPorDia[dias[d]] = calcularTotalPorDia(gastos, dias[d]); 
+  }
+  
   var resultado = {
     id: resolvedId,
     placa: liq ? liq.placa : "",
@@ -88,19 +98,20 @@ function _obtenerResumenLiquidacion(liquidacionId) {
     gastos: gastos,
     fletes: fletes
   };
-  cache.put(cacheKey, JSON.stringify(resultado), 30);
+  cache.put(cacheKey, JSON.stringify(resultado), 10);
   return resultado;
 }
 
 // ==================== Liquidaciones (public) ====================
 
-function crearLiquidacion(placa, fechaInicio, kmInicial, token) {
+function crearLiquidacion(placa, fechaInicio, kmInicial, conductor, token) {
   verificarSesion(token);
   var hoja = obtenerHoja("Liquidaciones");
   var id = obtenerProximoId(hoja);
   var liquidacion = {
     id: String(id),
     placa: placa,
+    conductor: conductor || "",
     fechaInicio: fechaInicio,
     fechaFin: null,
     kmInicial: kmInicial,
@@ -137,6 +148,12 @@ function cerrarLiquidacion(liquidacionId, kmFinal, token) {
     throw new Error("kmFinal (" + kmFinal + ") debe ser mayor que kmInicial (" + kmInicial + ")");
   }
 
+  var placa = liqFilas[idx].placa;
+  var vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", placa)[0];
+  if (vehiculo && Number(kmFinal) < Number(vehiculo.kmActual)) {
+    throw new Error("kmFinal (" + kmFinal + ") no puede ser menor que el km actual del vehiculo (" + vehiculo.kmActual + ")");
+  }
+
   var gastos = obtenerFilasFiltradas(obtenerHoja("Gastos"), "liquidacionId", resolvedId);
   var fletes = obtenerFilasFiltradas(obtenerHoja("Fletes"), "liquidacionId", resolvedId);
 
@@ -144,7 +161,11 @@ function cerrarLiquidacion(liquidacionId, kmFinal, token) {
   var totalFletes = calcularTotalFletes(fletes);
   var balance = calcularBalance(fletes, gastos);
 
-  var totalACPM = 0;
+  function _invalidarCacheResumen(liquidacionId) {
+  CacheService.getScriptCache().remove("resumen_" + liquidacionId);
+}
+
+var totalACPM = 0;
   for (var j = 0; j < gastos.length; j++) {
     if (gastos[j].categoria === "ACPM") totalACPM += gastos[j].monto;
   }
@@ -209,37 +230,69 @@ function agregarGasto(liquidacionId, categoria, descripcion, monto, fecha, esAdi
   verificarSesion(token);
   var hoja = obtenerHoja("Gastos");
   var id = obtenerProximoId(hoja);
+  
+  // Para gastos adicionales, la fecha puede estar vacía
+  var fechaNormalizada = fecha || "";
+  var diaSemana = "";
+  
+  if (fecha && !esAdicional) {
+    try {
+      diaSemana = new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" });
+    } catch (e) {
+      diaSemana = "";
+    }
+  }
+  
   var gasto = {
     id: String(id),
     liquidacionId: liquidacionId,
-    fecha: fecha,
-    diaSemana: new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" }),
+    fecha: fechaNormalizada,
+    diaSemana: diaSemana,
     categoria: categoria,
     descripcion: descripcion,
     monto: monto,
-    esAdicional: esAdicional,
+    esAdicional: esAdicional || false,
   };
   agregarFila(hoja, gasto);
+  _invalidarCacheResumen(liquidacionId);
   return gasto;
 }
 
 function editarGasto(id, categoria, descripcion, monto, fecha, esAdicional, token) {
   verificarSesion(token);
   var hoja = obtenerHoja("Gastos");
+  
+  var fechaNormalizada = fecha || "";
+  var diaSemana = "";
+  
+  if (fecha && !esAdicional) {
+    try {
+      diaSemana = new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" });
+    } catch (e) {
+      diaSemana = "";
+    }
+  }
+  
   var datos = {
     categoria: categoria,
     descripcion: descripcion,
     monto: monto,
-    fecha: fecha,
-    diaSemana: new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" }),
-    esAdicional: esAdicional,
+    fecha: fechaNormalizada,
+    diaSemana: diaSemana,
+    esAdicional: esAdicional || false,
   };
+  var filasGastos = leerFilas(hoja, 2);
+  var gastoExistente = filasGastos.find(function(f) { return String(f.id) === String(id); });
+  if (gastoExistente) _invalidarCacheResumen(gastoExistente.liquidacionId);
   return editarFila(hoja, "id", id, datos);
 }
 
 function eliminarGasto(id, token) {
   verificarSesion(token);
   var hoja = obtenerHoja("Gastos");
+  var filasGastos = leerFilas(hoja, 2);
+  var gastoEliminar = filasGastos.find(function(f) { return String(f.id) === String(id); });
+  if (gastoEliminar) _invalidarCacheResumen(gastoEliminar.liquidacionId);
   return eliminarFila(hoja, "id", id);
 }
 
@@ -256,6 +309,7 @@ function agregarFlete(liquidacionId, concepto, cliente, tipoCarga, monto, token)
     monto: monto,
   };
   agregarFila(hoja, flete);
+  _invalidarCacheResumen(liquidacionId);
   return flete;
 }
 
@@ -268,12 +322,18 @@ function editarFlete(id, concepto, cliente, tipoCarga, monto, token) {
     tipoCarga: tipoCarga,
     monto: monto,
   };
+  var filasFletes = leerFilas(hoja, 2);
+  var fleteExistente = filasFletes.find(function(f) { return String(f.id) === String(id); });
+  if (fleteExistente) _invalidarCacheResumen(fleteExistente.liquidacionId);
   return editarFila(hoja, "id", id, datos);
 }
 
 function eliminarFlete(id, token) {
   verificarSesion(token);
   var hoja = obtenerHoja("Fletes");
+  var filasFletes = leerFilas(hoja, 2);
+  var fleteEliminar = filasFletes.find(function(f) { return String(f.id) === String(id); });
+  if (fleteEliminar) _invalidarCacheResumen(fleteEliminar.liquidacionId);
   return eliminarFila(hoja, "id", id);
 }
 
@@ -335,6 +395,14 @@ function obtenerEstadoVehiculo(token) {
   var configFilas = leerFilas(obtenerHoja("Config"), 2);
   for (var i = 0; i < configFilas.length; i++) { config[configFilas[i].clave] = configFilas[i].valor; }
   return detectarAlertasMantenimiento(vehiculo, config, new Date().toISOString().split("T")[0]);
+}
+
+function obtenerKmActualVehiculo(token) {
+  verificarSesion(token);
+  var liq = obtenerLiquidacionAbierta();
+  if (!liq) return 0;
+  var vehiculo = obtenerFilasFiltradas(obtenerHoja("Vehiculo"), "placa", liq.placa)[0];
+  return vehiculo ? Number(vehiculo.kmActual) : 0;
 }
 
 // ==================== WhatsApp / Email ====================
@@ -466,7 +534,7 @@ function obtenerBitacora(liquidacionId, token) {
   return filas.filter(function(f) { return String(f.liquidacionId) === String(liquidacionId); });
 }
 
-function convertirBitacoraAGasto(bitacoraId, token) {
+function convertirBitacoraAGasto(bitacoraId, categoria, token) {
   verificarSesion(token);
   var hojaBitacora = obtenerHoja("Bitacora");
   var filas = leerFilas(hojaBitacora, 2);
@@ -484,7 +552,7 @@ function convertirBitacoraAGasto(bitacoraId, token) {
     liquidacionId: filas[idx].liquidacionId,
     fecha: filas[idx].fecha,
     diaSemana: new Date(filas[idx].fecha).toLocaleDateString("es-CO", { weekday: "long" }),
-    categoria: "Otro",
+    categoria: categoria || "Otro",
     descripcion: filas[idx].nota,
     monto: filas[idx].montoOpcional || 0,
     esAdicional: !0,
@@ -493,6 +561,7 @@ function convertirBitacoraAGasto(bitacoraId, token) {
 
   filas[idx].convertidoAGasto = true;
   hojaBitacora.getRange(idx + 2, 1, 1, Object.values(filas[idx]).length).setValues([Object.values(filas[idx])]);
+  _invalidarCacheResumen(filas[idx].liquidacionId);
 
   return gasto;
 }

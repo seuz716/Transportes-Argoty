@@ -63,8 +63,12 @@ PropertiesService.getScriptProperties().setProperties({
 1. En el editor de Apps Script: **Implementar > Nueva implementación**
 2. Tipo: **App web**
 3. Ejecutar como: **Yo (USER_DEPLOYING)**
-4. Acceso: **Cualquiera con el enlace (ANYONE_WITH_LINK)**
+4. Acceso: 
+   - **Opción A (recomendado)**: **Yo mismo (MYSELF)** - Solo el dueño puede acceder
+   - **Opción B**: **Cualquiera con el enlace (ANYONE_WITH_LINK)** - Para compartir con otros
 5. Deploy URL: Copia el enlace
+
+> **Nota**: La configuración actual en `appsscript.json` es `MYSELF`. Cambia a `ANYONE_WITH_LINK` solo si necesitas compartir la app.
 
 ### 8. Agregar a pantalla de inicio (Android/iOS)
 
@@ -93,3 +97,32 @@ Inicia sesión y reinicia el PIN:
 ```javascript
 PropertiesService.getScriptProperties().setProperty('PIN', '123456');
 ```
+
+## 🔄 Cambios Recientes
+
+### v0.2.0 - 2026-07-29
+
+#### Nuevas funcionalidades:
+- **Gastos adicionales**: Ahora puedes marcar gastos como "adicionales" (no asignados a un día específico)
+  - Checkbox en el formulario de gastos
+  - Badge "Adic." en la lista
+  - Sección separada en el PDF
+- **Mejora cola offline**: 
+  - Refactorización completada
+  - Reintentos automáticos (máx 3 intentos)
+  - Eliminación segura de operaciones procesadas
+- **Display de día de la semana**: Muestra el día seleccionado al agregar gastos
+
+#### Correcciones:
+- Validación correcta de fechas para gastos adicionales
+- Cálculo correcto de totales por día (excluye adicionales)
+- Tooltip en contador de operaciones pendientes
+
+---
+
+## 📚 Changelog
+
+| Versión | Fecha | Cambios |
+|---------|-------|---------|
+| 0.2.0 | 2026-07-29 | Gastos adicionales, cola offline refactorizada |
+| 0.1.0 | 2026-07-28 | Lanzamiento inicial |

@@ -114,6 +114,25 @@ npx jest --coverage  # Con reporte de cobertura
 - Todo cálculo financiero se valida en el backend — nunca confiarse en totals que llegan del cliente
 - Respuestas de IA se renderizan con `textContent`, nunca `innerHTML`
 
+## Nuevas Funcionalidades (v0.2.0)
+
+### Gastos Adicionales
+- Marcar gastos como "adicionales" (no asignados a un día específico)
+- Badge "Adic." en la lista de gastos
+- Sección separada "Gastos adicionales" en el PDF
+- Subtotal de adicionales en el PDF
+
+### Cola Offline Mejorada
+- Reintentos automáticos (máximo 3 intentos)
+- Eliminación segura de operaciones procesadas
+- Prevención de operaciones duplicadas
+- Tooltip en contador de operaciones pendientes
+
+### UX Mejorado
+- Display dinámico del día de la semana al agregar gastos
+- Validación de fechas: si es adicional, la fecha es opcional
+- Contador de pendientes más visible con tooltip
+
 ## Costos
 
 Apps Script + Sheets + Gemini Flash (free tier): **$0**

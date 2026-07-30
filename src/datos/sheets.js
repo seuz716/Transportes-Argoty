@@ -20,7 +20,7 @@ function agregarEncabezados(hoja, nombre) {
   let encabezados = [];
   switch (nombre) {
     case "Liquidaciones":
-      encabezados = ["id", "placa", "fechaInicio", "fechaFin", "kmInicial", "kmFinal", "estado", "totalGastos", "totalFletes", "balance", "consumoKm", "pdfUrl"];
+      encabezados = ["id", "placa", "conductor", "fechaInicio", "fechaFin", "kmInicial", "kmFinal", "estado", "totalGastos", "totalFletes", "balance", "consumoKm", "pdfUrl"];
       break;
     case "Gastos":
       encabezados = ["id", "liquidacionId", "fecha", "diaSemana", "categoria", "descripcion", "monto", "esAdicional"];
@@ -94,9 +94,13 @@ function editarFila(hoja, idColumn, id, datos) {
   const idx = filas.findIndex((f) => String(f[idColumn]) === String(id));
   if (idx === -1) throw new Error("Fila con id " + id + " no encontrada");
   const sheetRow = idx + 2;
-  const columnas = Object.keys(datos);
-  const values = [Object.values(datos)];
-  hoja.getRange(sheetRow, 1, 1, columnas.length).setValues(values);
+  const headers = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  const rowValues = hoja.getRange(sheetRow, 1, 1, headers.length).getValues()[0];
+  const row = {};
+  headers.forEach(function(h, i) { row[h] = rowValues[i]; });
+  Object.keys(datos).forEach(function(k) { row[k] = datos[k]; });
+  const finalValues = headers.map(function(h) { return row[h]; });
+  hoja.getRange(sheetRow, 1, 1, headers.length).setValues([finalValues]);
   return datos;
 }
 

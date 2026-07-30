@@ -102,7 +102,7 @@ h3{font-size:1rem;margin:8px 0 4px}
 
 <div id="main-screen">
   <div id="alertas-banner"></div>
-  <span id="pending-counter" style="display:none;font-size:.8rem;color:#d93025;margin-left:8px"></span>
+  <span id="pending-counter" style="display:none;font-size:1rem;font-weight:700;color:#d93025;margin-left:8px;background:rgba(217,48,37,.1);padding:2px 8px;border-radius:4px"></span>
 
   <div id="balance-sticky" class="hidden">
     <div class="summary" style="margin-bottom:0">
@@ -122,6 +122,10 @@ h3{font-size:1rem;margin:8px 0 4px}
     <div class="form-group">
       <label>Fecha de inicio</label>
       <input type="date" id="viaje-fecha">
+    </div>
+    <div class="form-group">
+      <label>Conductor (opcional)</label>
+      <input type="text" id="viaje-conductor" placeholder="Nombre del conductor" autocomplete="off">
     </div>
     <div class="form-group">
       <label>Kilometro inicial</label>
@@ -148,6 +152,16 @@ h3{font-size:1rem;margin:8px 0 4px}
     <div class="form-group">
       <label>Monto ($)</label>
       <input type="number" id="gasto-monto" placeholder="0" step="1000" min="0">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="gasto-adicional">
+        Gasto adicional (no asignado a día específico)
+      </label>
+    </div>
+    <div class="form-group" id="dia-display">
+      <label>Día de la semana</label>
+      <div style="padding:8px;background:#e8f0fe;border-radius:6px;text-align:center;font-weight:600;color:#1a73e8;font-size:.9rem" id="dia-texto"></div>
     </div>
     <button class="btn btn-primary" id="btn-agregar-gasto">Agregar gasto</button>
 
@@ -278,6 +292,7 @@ var ICONOS = {
 
 var GAS_QUEUE_KEY = "flota_offline_queue";
 var GAS_TIMEOUT_MS = 15000;
+var GAS_MAX_RETRIES = 3;
 
 function _gasTimeout(ms) {
   return new Promise(function(_, reject) {
@@ -293,26 +308,87 @@ function _gasLoadQueue() {
   try { return JSON.parse(localStorage.getItem(GAS_QUEUE_KEY) || "[]"); } catch (e) { return []; }
 }
 
+/**
+ * Procesa la cola de operaciones offline de forma segura
+ * Itera sobre una copia de la cola para evitar problemas con splice durante iteración
+ */
 function _gasProcessQueue() {
   var queue = _gasLoadQueue();
   if (queue.length === 0) return;
-  var count = queue.length;
+  
+  // Trabajar con una copia para evitar problemas de mutación durante iteración
+  var originalQueue = queue.slice();
   var processed = 0;
-  queue.forEach(function(op, idx) {
+  var total = originalQueue.length;
+  
+  originalQueue.forEach(function(op, idx) {
     GAS.call(op.fn, op.args).then(function() {
-      queue.splice(idx, 1);
-      _gasSaveQueue(queue);
+      // Éxito: eliminar de la cola original buscando por referencia
+      _gasRemoveOperation(op.fn, op.args);
       processed++;
-    }).catch(function() {
+    }).catch(function(error) {
+      // Fallo: incrementar contador de reintentos
+      console.warn("Operación fallida (reintentará):", op.fn, error.message);
+      _gasIncrementRetry(op);
       processed++;
     });
   });
+  
+  // Verificar periódicamente si se completó el procesamiento
   var interval = setInterval(function() {
-    if (processed >= count) {
+    if (processed >= total) {
       clearInterval(interval);
       _gasUpdatePendingCount();
     }
   }, 1000);
+}
+
+/**
+ * Elimina una operación específica de la cola de forma segura
+ */
+function _gasRemoveOperation(fn, args) {
+  var queue = _gasLoadQueue();
+  var index = queue.findIndex(function(op) {
+    // Comparar sin el token (último argumento)
+    var argsToCompare = op.args.length > 0 ? op.args.slice(0, -1) : [];
+    var providedArgs = args.slice(0, -1);
+    return op.fn === fn && JSON.stringify(argsToCompare) === JSON.stringify(providedArgs);
+  });
+  if (index > -1) {
+    queue.splice(index, 1);
+    _gasSaveQueue(queue);
+  }
+  _gasUpdatePendingCount();
+}
+
+/**
+ * Incrementa el contador de reintentos para una operación
+ * Si excede el límite, se notifica al usuario y se elimina
+ */
+function _gasIncrementRetry(op) {
+  var queue = _gasLoadQueue();
+  var index = queue.findIndex(function(item) {
+    return item.fn === op.fn && 
+           JSON.stringify(item.args) === JSON.stringify(op.args);
+  });
+  
+  if (index === -1) return;
+  
+  var retries = queue[index].retries || 0;
+  retries++;
+  queue[index].retries = retries;
+  
+  if (retries >= GAS_MAX_RETRIES) {
+    // Máximo de reintentos alcanzado
+    queue.splice(index, 1);
+    _gasSaveQueue(queue);
+    toast("Operación falló después de " + GAS_MAX_RETRIES + " intentos", "error");
+  } else {
+    // Reintentar más tarde
+    _gasSaveQueue(queue);
+  }
+  
+  _gasUpdatePendingCount();
 }
 
 function _gasUpdatePendingCount() {
@@ -321,6 +397,7 @@ function _gasUpdatePendingCount() {
   if (!el) return;
   if (count > 0) {
     el.textContent = count + " pendiente" + (count > 1 ? "s" : "");
+    el.title = "Operaciones pendientes de sincronización";
     el.style.display = "inline";
   } else {
     el.style.display = "none";
@@ -329,7 +406,21 @@ function _gasUpdatePendingCount() {
 
 function _gasQueueOperation(fn, args) {
   var queue = _gasLoadQueue();
-  queue.push({ fn: fn, args: args, ts: Date.now() });
+  // Verificar si ya existe una operación similar (evitar duplicados)
+  var existingIndex = queue.findIndex(function(op) {
+    var argsToCompare = op.args.length > 0 ? op.args.slice(0, -1) : [];
+    var providedArgs = args.slice(0, -1);
+    return op.fn === fn && JSON.stringify(argsToCompare) === JSON.stringify(providedArgs);
+  });
+  
+  if (existingIndex > -1) {
+    // Actualizar la operación existente con nuevo timestamp
+    queue[existingIndex].args = args;
+    queue[existingIndex].ts = Date.now();
+    queue[existingIndex].retries = 0;
+  } else {
+    queue.push({ fn: fn, args: args, ts: Date.now(), retries: 0 });
+  }
   _gasSaveQueue(queue);
   _gasUpdatePendingCount();
 }
@@ -354,13 +445,14 @@ var GAS = {
     });
   },
   pin: function(pin) { return GAS.call("verificarPIN", [pin]); },
-  crearLiquidacion: function(placa, fechaInicio, kmInicial) { return GAS.call("crearLiquidacion", [placa, fechaInicio, kmInicial]); },
+  crearLiquidacion: function(placa, fechaInicio, kmInicial, conductor) { return GAS.call("crearLiquidacion", [placa, fechaInicio, kmInicial, conductor]); },
   agregarGasto: function(lid, cat, desc, monto, fecha, adicional) { return GAS.call("agregarGasto", [lid, cat, desc, monto, fecha, adicional]); },
   agregarFlete: function(lid, concepto, cliente, tipoCarga, monto) { return GAS.call("agregarFlete", [lid, concepto, cliente, tipoCarga, monto]); },
   cerrarLiquidacion: function(lid, kmFinal) { return GAS.call("cerrarLiquidacion", [lid, kmFinal]); },
   obtenerResumen: function(lid) { return GAS.call("obtenerResumenLiquidacion", [lid]); },
   comparar: function(idA, idB) { return GAS.call("compararLiquidaciones", [idA, idB]); },
   estadoVehiculo: function() { return GAS.call("obtenerEstadoVehiculo", []); },
+  obtenerKmActualVehiculo: function() { return GAS.call("obtenerKmActualVehiculo", []); },
   preguntarIA: function(preg, lid) { return GAS.call("preguntarIA", [preg, lid]); },
     enviarWhatsApp: function(lid, url) { return GAS.call("construirWhatsAppUrl", [lid, url]); },
   enviarEmail: function(dest, asunto, cuerpo, pdfUrl) { return GAS.call("enviarPorEmail", [dest, asunto, cuerpo, pdfUrl]); },
@@ -373,11 +465,12 @@ var GAS = {
   editarFlete: function(id, concepto, cliente, tipoCarga, monto) { return GAS.call("editarFlete", [id, concepto, cliente, tipoCarga, monto]); },
   eliminarFlete: function(id) { return GAS.call("eliminarFlete", [id]); },
   listarLiquidaciones: function() { return GAS.call("listarLiquidaciones", []); },
-  convertirBitacoraAGasto: function(bitacoraId) { return GAS.call("convertirBitacoraAGasto", [bitacoraId]); }
+  convertirBitacoraAGasto: function(bitacoraId, categoria) { return GAS.call("convertirBitacoraAGasto", [bitacoraId, categoria]); }
   };
 
 var LIQUIDACION_ID = null;
 var KM_INICIAL = null;
+var KM_VEHICULO = null;
 var cerraduraData = null;
 var categoriaSeleccionada = null;
 var _cachedResumen = null;
@@ -466,6 +559,7 @@ async function openLiquidacion() {
 async function crearNuevoViaje() {
   var placa = document.getElementById("viaje-placa").value.trim();
   var fecha = document.getElementById("viaje-fecha").value;
+  var conductor = document.getElementById("viaje-conductor").value.trim();
   var kmInicial = parseInt(document.getElementById("viaje-km-inicial").value);
   if (!placa || !fecha || isNaN(kmInicial) || kmInicial < 0) {
     return toast("Complete todos los campos correctamente", "error");
@@ -474,7 +568,7 @@ async function crearNuevoViaje() {
   btn.disabled = true;
   btn.textContent = "Abriendo...";
   try {
-    await GAS.crearLiquidacion(placa, fecha, kmInicial);
+    await GAS.crearLiquidacion(placa, fecha, kmInicial, conductor);
     openLiquidacion();
   } catch (e) {
     toast("Error al crear viaje: " + e.message, "error");
@@ -566,15 +660,20 @@ async function agregarGasto() {
   var fecha = document.getElementById("gasto-fecha").value;
   var desc = document.getElementById("gasto-descripcion").value;
   var monto = parseFloat(document.getElementById("gasto-monto").value);
-  if (!fecha || !desc || !monto) return toast("Complete todos los campos", "error");
+  var esAdicional = document.getElementById("gasto-adicional").checked;
+  
+  // Validación: si es adicional, la fecha es opcional; si no, es obligatoria
+  if (!desc || !monto) return toast("Complete descripción y monto", "error");
+  if (!esAdicional && !fecha) return toast("Seleccione una fecha", "error");
   if (!LIQUIDACION_ID) return toast("Abra un viaje primero", "error");
   var btn = document.getElementById("btn-agregar-gasto");
   btn.disabled = true;
   btn.textContent = "Agregando...";
   try {
-    await GAS.agregarGasto(LIQUIDACION_ID, categoria, desc, monto, fecha, false);
+    await GAS.agregarGasto(LIQUIDACION_ID, categoria, desc, monto, fecha || "", esAdicional);
     document.getElementById("gasto-descripcion").value = "";
     document.getElementById("gasto-monto").value = "";
+    document.getElementById("gasto-adicional").checked = false;
     _cachedResumen = null;
     loadResumen();
     loadGastos();
@@ -632,8 +731,10 @@ function renderGastos(res) {
   var el = document.getElementById("lista-gastos");
   el.innerHTML = res.gastos.map(function(g) {
     var cls = g.esAdicional ? " addition" : "";
+    var badgeAdicional = g.esAdicional ? ' <span style="font-size:.7rem;background:#1a73e8;color:#fff;border-radius:4px;padding:2px 6px">Adic.</span>' : '';
+    var diaInfo = g.diaSemana ? escapeHtml(g.diaSemana) : '<span style="color:#9aa0a6">Sin día específico</span>';
     return '<div class="expense-item' + cls + '">' +
-      '<div><div class="desc">' + escapeHtml(g.descripcion) + '</div><div class="cat">' + escapeHtml(g.categoria) + ' \u2014 ' + escapeHtml(g.diaSemana) + '</div></div>' +
+      '<div><div class="desc">' + escapeHtml(g.descripcion) + badgeAdicional + '</div><div class="cat">' + escapeHtml(g.categoria) + ' — ' + diaInfo + '</div></div>' +
       '<div style="display:flex;align-items:center;gap:4px">' +
       '<span class="amt">$' + g.monto.toLocaleString("es-CO") + '</span>' +
       '<button class="btn btn-secondary" style="padding:4px 8px;font-size:.75rem" onclick="editarGastoPrompt(\'' + g.id + '\')">\u270F\uFE0F</button>' +
@@ -647,14 +748,17 @@ function editarGastoPrompt(id) {
   if (_cachedResumen && _cachedResumen.gastos) {
     g = _cachedResumen.gastos.find(function(x) { return x.id === id; });
   }
-  if (!g) return toast("No se encontr\u00f3 el gasto", "error");
+  if (!g) return toast("No se encontró el gasto", "error");
+  
   var nuevoMonto = prompt("Nuevo monto ($):", String(g.monto));
   if (nuevoMonto === null) return;
-  var nuevaDesc = prompt("Nueva descripci\u00f3n:", g.descripcion);
+  var nuevaDesc = prompt("Nueva descripción:", g.descripcion);
   if (nuevaDesc === null) return;
-  var nuevaCat = prompt("Categor\u00eda:", g.categoria);
+  var nuevaCat = prompt("Categoría:", g.categoria);
   if (nuevaCat === null) return;
-  GAS.editarGasto(id, nuevaCat, nuevaDesc, parseFloat(nuevoMonto) || g.monto, g.fecha, g.esAdicional).then(function() {
+  var marcarAdicional = confirm("¿Es un gasto adicional (no asignado a día específico)?");
+  
+  GAS.editarGasto(id, nuevaCat, nuevaDesc, parseFloat(nuevoMonto) || g.monto, g.fecha, marcarAdicional).then(function() {
     _cachedResumen = null;
     loadGastos();
     loadResumen();
@@ -757,6 +861,11 @@ function setupCerramientoHandlers() {
 }
 
 function showKmFinalDialog() {
+  GAS.obtenerKmActualVehiculo().then(function(km) {
+    KM_VEHICULO = km;
+  }).catch(function() {
+    KM_VEHICULO = null;
+  });
   var dialog = document.getElementById("km-final-dialog");
   dialog.classList.remove("hidden");
   var input = document.getElementById("viaje-km-final");
@@ -769,6 +878,21 @@ function hideKmFinalDialog() {
   document.getElementById("km-final-dialog").classList.add("hidden");
 }
 
+function updateDiaDisplay() {
+  var fecha = document.getElementById("gasto-fecha").value;
+  var diaDisplay = document.getElementById("dia-display");
+  var diaTexto = document.getElementById("dia-texto");
+  
+  if (!fecha) {
+    diaDisplay.style.display = "none";
+    return;
+  }
+  
+  var dia = new Date(fecha).toLocaleDateString("es-CO", { weekday: "long" });
+  diaTexto.textContent = dia;
+  diaDisplay.style.display = "block";
+}
+
 async function confirmarCierre() {
   var kmFinal = parseInt(document.getElementById("viaje-km-final").value);
   var errorEl = document.getElementById("km-final-error");
@@ -779,6 +903,11 @@ async function confirmarCierre() {
   }
   if (KM_INICIAL !== null && kmFinal <= KM_INICIAL) {
     errorEl.textContent = "El km final debe ser mayor al km inicial (" + KM_INICIAL + ")";
+    errorEl.style.display = "block";
+    return;
+  }
+  if (KM_VEHICULO !== null && kmFinal < KM_VEHICULO) {
+    errorEl.textContent = "El km final (" + kmFinal + ") no puede ser menor al km actual del vehiculo (" + KM_VEHICULO + ")";
     errorEl.style.display = "block";
     return;
   }
@@ -833,8 +962,21 @@ function init() {
   document.getElementById("btn-hoy").addEventListener("click", function() {
     var today = new Date().toISOString().split("T")[0];
     document.getElementById("gasto-fecha").value = today;
+    updateDiaDisplay();
   });
   document.getElementById("gasto-fecha").value = new Date().toISOString().split("T")[0];
+  updateDiaDisplay();
+
+  // Manejador para checkbox de gasto adicional
+  document.getElementById("gasto-adicional").addEventListener("change", function() {
+    var diaDisplay = document.getElementById("dia-display");
+    if (this.checked) {
+      diaDisplay.style.display = "none";
+      document.getElementById("gasto-fecha").value = "";
+    } else {
+      updateDiaDisplay();
+    }
+  });
 
   document.getElementById("btn-crear-viaje").addEventListener("click", crearNuevoViaje);
   document.getElementById("btn-agregar-gasto").addEventListener("click", agregarGasto);
@@ -937,8 +1079,10 @@ async function agregarBitacora() {
 }
 
 function convertirBitacora(id) {
-  if (!confirm('Convertir esta nota en gasto?')) return;
-  GAS.convertirBitacoraAGasto(id).then(function() {
+  var categoria = prompt("Categoría para el gasto (Diario, ACPM, Peajes, Comision, Coteros, Descargue, Envarillada, Manifiesto, Mantenimiento, Otro):", "Otro");
+  if (!categoria) return;
+  if (!confirm('Convertir esta nota en gasto con categoría "' + categoria + '"?')) return;
+  GAS.convertirBitacoraAGasto(id, categoria).then(function() {
     _cachedResumen = null;
     loadBitacora();
     loadGastos();

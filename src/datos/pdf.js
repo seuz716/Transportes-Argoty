@@ -14,11 +14,11 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
       " | Fecha fin: " + (datos.fechaFin || new Date().toISOString().split("T")[0])
   ).setFontSize(10);
 
-  body.appendParagraph(
-      "Vehiculo: " + datos.placa +
-      " | Km " + datos.kmInicial + " a " + datos.kmFinal +
-      " (" + (datos.kmFinal - datos.kmInicial) + " km)"
-  ).setFontSize(10);
+  var lineaVehiculo = "Vehiculo: " + datos.placa;
+  if (datos.conductor) lineaVehiculo += " | Conductor: " + datos.conductor;
+  lineaVehiculo += " | Km " + datos.kmInicial + " a " + datos.kmFinal +
+      " (" + (datos.kmFinal - datos.kmInicial) + " km)";
+  body.appendParagraph(lineaVehiculo).setFontSize(10);
 
   if (datos.consumoKm) {
     body.appendParagraph("Consumo ACPM: $" + datos.consumoKm.toFixed(2) + "/km").setFontSize(10);
@@ -28,8 +28,11 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
 
   var dias = {};
   gastos.forEach(function(g) {
-    if (!dias[g.diaSemana]) dias[g.diaSemana] = [];
-    dias[g.diaSemana].push(g);
+    // Solo agregar a días si tiene diaSemana (gastos no adicionales)
+    if (g.diaSemana) {
+      if (!dias[g.diaSemana]) dias[g.diaSemana] = [];
+      dias[g.diaSemana].push(g);
+    }
   });
 
   var diasOrden = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
@@ -57,6 +60,9 @@ function generarPDFLiquidacion(liquidacionId, datos, fletes, gastos) {
           " [" + item.categoria + "]"
       ).setFontSize(10);
     });
+    var subtotalAdicionales = adicionales.reduce(function(s, i) { return s + i.monto; }, 0);
+    body.appendParagraph("  Subtotal adicionales: $" + subtotalAdicionales.toLocaleString("es-CO"))
+        .setFontSize(10).setBold(true);
   }
 
   body.appendParagraph("").setHeading(DocumentApp.ParagraphHeading.HEADING2).setText(" Resumen financiero");
